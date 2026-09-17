@@ -1,0 +1,315 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User account and profile document",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "phone": { "type": "string", "maxLength": 20 },
+        "email": { "type": "string", "maxLength": 100 },
+        "balance": { "type": "number" },
+        "totalWon": { "type": "number" },
+        "totalSpent": { "type": "number" },
+        "referralCode": { "type": "string", "maxLength": 50 },
+        "totalReferrals": { "type": "number" },
+        "lastSpinTime": { "type": "number" },
+        "status": { "type": "string", "enum": ["active", "suspended"] },
+        "role": { "type": "string", "enum": ["user", "admin"] }
+      },
+      "required": ["id", "name", "phone", "balance"]
+    },
+    "LotteryDraw": {
+      "title": "LotteryDraw",
+      "description": "Lottery draw instance",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 100 },
+        "category": { "type": "string", "maxLength": 50 },
+        "ticketPrice": { "type": "number" },
+        "firstPrize": { "type": "number" },
+        "secondPrize": { "type": "number" },
+        "thirdPrize": { "type": "number" },
+        "endTime": { "type": "number" },
+        "totalTicketsSold": { "type": "number" },
+        "drawDurationMs": { "type": "number" }
+      },
+      "required": ["id", "title", "ticketPrice", "firstPrize"]
+    },
+    "DepositRequest": {
+      "title": "DepositRequest",
+      "description": "Deposit transaction request",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "userName": { "type": "string", "maxLength": 100 },
+        "userPhone": { "type": "string", "maxLength": 20 },
+        "amount": { "type": "number" },
+        "method": { "type": "string", "enum": ["upi", "phonepe", "gpay", "paytm", "bank"] },
+        "utr": { "type": "string", "maxLength": 100 },
+        "screenshotUrl": { "type": "string", "maxLength": 500 },
+        "date": { "type": "string", "maxLength": 50 },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "rejectReason": { "type": "string", "maxLength": 200 }
+      },
+      "required": ["id", "userId", "amount", "method", "utr", "status"]
+    },
+    "WithdrawalRequest": {
+      "title": "WithdrawalRequest",
+      "description": "Withdrawal transaction request",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "userName": { "type": "string", "maxLength": 100 },
+        "userPhone": { "type": "string", "maxLength": 20 },
+        "amount": { "type": "number" },
+        "fullName": { "type": "string", "maxLength": 100 },
+        "accountNumber": { "type": "string", "maxLength": 50 },
+        "ifscCode": { "type": "string", "maxLength": 20 },
+        "upiId": { "type": "string", "maxLength": 100 },
+        "date": { "type": "string", "maxLength": 50 },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "rejectReason": { "type": "string", "maxLength": 200 }
+      },
+      "required": ["id", "userId", "amount", "status"]
+    },
+    "PurchasedTicket": {
+      "title": "PurchasedTicket",
+      "description": "Purchased lottery ticket record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "drawId": { "type": "string", "maxLength": 128 },
+        "drawTitle": { "type": "string", "maxLength": 100 },
+        "ticketNumber": { "type": "string", "maxLength": 50 },
+        "price": { "type": "number" },
+        "purchaseDate": { "type": "string", "maxLength": 50 },
+        "drawTime": { "type": "number" },
+        "status": { "type": "string", "enum": ["active", "win", "loss"] },
+        "wonAmount": { "type": "number" }
+      },
+      "required": ["id", "userId", "drawId", "ticketNumber", "price", "status"]
+    },
+    "WalletTransaction": {
+      "title": "WalletTransaction",
+      "description": "Ledger entry for wallet transactions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "type": { "type": "string", "enum": ["deposit", "withdrawal", "ticket_buy", "win_payout", "wheel_bonus", "admin_bonus"] },
+        "amount": { "type": "number" },
+        "description": { "type": "string", "maxLength": 200 },
+        "status": { "type": "string", "enum": ["completed", "pending", "rejected", "failed"] },
+        "date": { "type": "string", "maxLength": 50 },
+        "utr": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["id", "userId", "type", "amount", "status"]
+    },
+    "NotificationItem": {
+      "title": "NotificationItem",
+      "description": "In-app notification item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 150 },
+        "message": { "type": "string", "maxLength": 300 },
+        "type": { "type": "string", "enum": ["deposit", "withdrawal", "win", "system"] },
+        "date": { "type": "string", "maxLength": 50 },
+        "read": { "type": "boolean" }
+      },
+      "required": ["id", "userId", "title", "message", "type", "read"]
+    },
+    "AnalyticsEvent": {
+      "title": "AnalyticsEvent",
+      "description": "Interaction analytics event log",
+      "type": "object",
+      "properties": {
+        "event": { "type": "string", "maxLength": 100 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "userEmail": { "type": "string", "maxLength": 100 },
+        "timestamp": { "type": "number" },
+        "device": { "type": "string", "maxLength": 20 }
+      },
+      "required": ["event", "userId"]
+    },
+    "AdminNotification": {
+      "title": "AdminNotification",
+      "description": "Real-time administrator notifications collection",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "type": { "type": "string", "enum": ["deposit", "withdrawal", "ticket", "bet", "general"] },
+        "title": { "type": "string", "maxLength": 200 },
+        "description": { "type": "string", "maxLength": 500 },
+        "amount": { "type": "number" },
+        "userName": { "type": "string", "maxLength": 100 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "maxLength": 50 },
+        "timestamp": { "type": "number" },
+        "createdAt": { "type": "string", "maxLength": 50 },
+        "read": { "type": "boolean" },
+        "dismissed": { "type": "boolean" }
+      },
+      "required": ["id", "type", "title", "description", "timestamp"]
+    },
+    "PromoCode": {
+      "title": "PromoCode",
+      "description": "Promotional reward and deposit bonus codes",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "code": { "type": "string", "maxLength": 50 },
+        "title": { "type": "string", "maxLength": 150 },
+        "description": { "type": "string", "maxLength": 500 },
+        "type": { "type": "string", "enum": ["instant_reward", "deposit_bonus"] },
+        "rewardAmount": { "type": "number" },
+        "bonusPercentage": { "type": "number" },
+        "flatBonusAmount": { "type": "number" },
+        "minDepositAmount": { "type": "number" },
+        "maxBonusLimit": { "type": "number" },
+        "targetWallet": { "type": "string", "enum": ["main", "bonus"] },
+        "maxUsesPerUser": { "type": "number" },
+        "maxTotalUses": { "type": "number" },
+        "usedCount": { "type": "number" },
+        "isActive": { "type": "boolean" },
+        "expiresAt": { "type": "string", "maxLength": 50 },
+        "createdAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "code", "title", "type", "targetWallet", "maxUsesPerUser", "isActive"]
+    },
+    "PromoRedemption": {
+      "title": "PromoRedemption",
+      "description": "User promo code claim history",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "codeId": { "type": "string", "maxLength": 128 },
+        "code": { "type": "string", "maxLength": 50 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "userEmail": { "type": "string", "maxLength": 100 },
+        "userName": { "type": "string", "maxLength": 100 },
+        "type": { "type": "string", "enum": ["instant_reward", "deposit_bonus"] },
+        "amountCredited": { "type": "number" },
+        "targetWallet": { "type": "string", "enum": ["main", "bonus"] },
+        "redeemedAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "codeId", "code", "userId", "type", "amountCredited", "targetWallet"]
+    }
+  },
+  "firestore": {
+    "/promo_codes/{codeId}": {
+      "schema": { "$ref": "#/entities/PromoCode" },
+      "description": "Admin-configured promotional codes"
+    },
+    "/promo_redemptions/{redemptionId}": {
+      "schema": { "$ref": "#/entities/PromoRedemption" },
+      "description": "User promo code redemption audit ledger"
+    },
+    "/admin_notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/AdminNotification" },
+      "description": "Real-time administrative bell notifications"
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles"
+    },
+    "/draws/{drawId}": {
+      "schema": { "$ref": "#/entities/LotteryDraw" },
+      "description": "Active and past lottery draws"
+    },
+    "/deposits/{depositId}": {
+      "schema": { "$ref": "#/entities/DepositRequest" },
+      "description": "Deposit transaction requests"
+    },
+    "/withdrawals/{withdrawalId}": {
+      "schema": { "$ref": "#/entities/WithdrawalRequest" },
+      "description": "Withdrawal transaction requests"
+    },
+    "/tickets/{ticketId}": {
+      "schema": { "$ref": "#/entities/PurchasedTicket" },
+      "description": "Purchased lottery tickets"
+    },
+    "/transactions/{transactionId}": {
+      "schema": { "$ref": "#/entities/WalletTransaction" },
+      "description": "Wallet ledger entries"
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/NotificationItem" },
+      "description": "User notifications"
+    },
+    "/analytics/{analyticsId}": {
+      "schema": { "$ref": "#/entities/AnalyticsEvent" },
+      "description": "User interaction analytics events"
+    },
+    "/supercar_config/{configId}": {
+      "description": "Super Car Draw module settings"
+    },
+    "/supercar_draws/{drawId}": {
+      "description": "Super Car Draw draw results and history"
+    },
+    "/payment_config/{configId}": {
+      "description": "Payment gateway config (UPI ID, QR code image, deposit limits, instructions)"
+    },
+    "/banner_sliders/{sliderId}": {
+      "description": "Homepage banner promotions and carousels"
+    },
+    "/bonus_rules/{ruleId}": {
+      "description": "Bonus balance policy and usage rules"
+    },
+    "/system_settings/{settingId}": {
+      "description": "System settings including SMTP and registration config"
+    },
+    "/broadcasts/{broadcastId}": {
+      "description": "Global promotional broadcast messages"
+    },
+    "/support_messages/{messageId}": {
+      "description": "Live support chat messages"
+    },
+    "/support_threads/{threadId}": {
+      "description": "Live support chat user conversation threads"
+    },
+    "/crash_bets/{betId}": {
+      "description": "Aviator crash game player bets"
+    },
+    "/crash_rounds/{roundId}": {
+      "description": "Aviator crash game round state and multipliers"
+    },
+    "/game_settings/{settingId}": {
+      "description": "Live casino and game settings"
+    },
+    "/live_activities/{activityId}": {
+      "description": "Real-time user activity logs for live monitor"
+    },
+    "/user_presence/{presenceId}": {
+      "description": "Active user presence tracking"
+    },
+    "/roulette_live_state/{docId}": {
+      "description": "Live Roulette active round state and synchronized multipliers"
+    },
+    "/roulette_config/{docId}": {
+      "description": "Roulette RTP, house edge and lightning multipliers configuration"
+    },
+    "/roulette_rounds/{roundId}": {
+      "description": "Roulette historical completed rounds"
+    },
+    "/roulette_bets/{betId}": {
+      "description": "Roulette player placed bets"
+    },
+    "/roulette_live_bets/{betId}": {
+      "description": "Roulette active live bets for current round"
+    },
+    "/roulette_history/{historyId}": {
+      "description": "Roulette result history stream"
+    },
+    "/banned_users/{banId}": {
+      "description": "Blacklisted and permanently banned user credentials to prevent re-registration"
+    }
+  }
+}

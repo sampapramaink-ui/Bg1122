@@ -1,0 +1,10 @@
+{
+  "name": "Remix Remix BETGURU user panel ",
+  "description": "Premium HD Lottery \u0026 Gaming Platform with Real-time Draws, Secure Wallet Deposit/Withdrawal, and Admin Management Dashboard",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

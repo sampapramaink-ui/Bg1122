@@ -1,0 +1,172 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradients -->
+    <linearGradient id="aviatorBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b0f19" />
+      <stop offset="40%" stop-color="#1a0b12" />
+      <stop offset="80%" stop-color="#2d0a14" />
+      <stop offset="100%" stop-color="#080306" />
+    </linearGradient>
+    
+    <linearGradient id="flightCurve" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ff1744" stop-opacity="0.2" />
+      <stop offset="50%" stop-color="#ff1744" stop-opacity="0.7" />
+      <stop offset="100%" stop-color="#ff5252" stop-opacity="1" />
+    </linearGradient>
+
+    <linearGradient id="curveFill" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ff1744" stop-opacity="0.35" />
+      <stop offset="100%" stop-color="#ff1744" stop-opacity="0.0" />
+    </linearGradient>
+
+    <linearGradient id="planeGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="30%" stop-color="#ff3366" />
+      <stop offset="100%" stop-color="#990022" />
+    </linearGradient>
+
+    <linearGradient id="goldBadge" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffe082" />
+      <stop offset="50%" stop-color="#ffb300" />
+      <stop offset="100%" stop-color="#ff8f00" />
+    </linearGradient>
+
+    <filter id="neonGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+
+    <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="4" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+
+    <!-- Radar Grid Pattern -->
+    <pattern id="radarGrid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#ff1744" stroke-width="0.5" stroke-opacity="0.12" />
+    </pattern>
+  </defs>
+
+  <!-- Deep Sci-Fi Background -->
+  <rect width="800" height="450" fill="url(#aviatorBg)" />
+  <rect width="800" height="450" fill="url(#radarGrid)" />
+
+  <!-- Radar Concentric Circles -->
+  <g opacity="0.15" stroke="#ff1744" fill="none" stroke-width="1">
+    <circle cx="200" cy="380" r="120" />
+    <circle cx="200" cy="380" r="240" />
+    <circle cx="200" cy="380" r="360" />
+    <circle cx="200" cy="380" r="480" stroke-dasharray="6,6" />
+    <line x1="200" y1="0" x2="200" y2="450" />
+    <line x1="0" y1="380" x2="800" y2="380" />
+  </g>
+
+  <!-- Flight Trajectory Area Fill -->
+  <path d="M 60 380 Q 340 370, 560 210 Q 640 150, 710 90 L 710 380 Z" fill="url(#curveFill)" />
+
+  <!-- Main Flight Parabolic Glowing Line -->
+  <path d="M 60 380 Q 340 370, 560 210 Q 640 150, 710 90" fill="none" stroke="url(#flightCurve)" stroke-width="6" stroke-linecap="round" filter="url(#neonGlow)" />
+  <path d="M 60 380 Q 340 370, 560 210 Q 640 150, 710 90" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" />
+
+  <!-- Altitude Dashed Helper Lines -->
+  <line x1="710" y1="90" x2="710" y2="380" stroke="#ff1744" stroke-width="1.5" stroke-dasharray="4,4" opacity="0.4" />
+  <line x1="60" y1="90" x2="710" y2="90" stroke="#ff1744" stroke-width="1" stroke-dasharray="4,4" opacity="0.25" />
+
+  <!-- Particle Stars & Sparks -->
+  <g fill="#ffffff" opacity="0.8">
+    <circle cx="580" cy="180" r="2" filter="url(#softGlow)" />
+    <circle cx="620" cy="140" r="1.5" />
+    <circle cx="670" cy="110" r="2.5" filter="url(#softGlow)" />
+    <circle cx="520" cy="240" r="1.5" />
+    <circle cx="440" cy="300" r="2" />
+    <circle cx="360" cy="340" r="1.5" />
+    <circle cx="730" cy="70" r="3" fill="#ffeb3b" filter="url(#neonGlow)" />
+  </g>
+
+  <!-- Big Red Aviator Supersonic Jet (At the crest of the curve) -->
+  <g transform="translate(685, 75) rotate(-32) scale(1.15)" filter="url(#neonGlow)">
+    <!-- Jet Engine Exhaust Fire -->
+    <ellipse cx="-45" cy="0" rx="22" ry="7" fill="#ff1744" opacity="0.85" filter="url(#neonGlow)" />
+    <ellipse cx="-40" cy="0" rx="14" ry="4" fill="#ffea00" />
+    <ellipse cx="-32" cy="0" rx="8" ry="2.5" fill="#ffffff" />
+    
+    <!-- Wing Contrail Vapor -->
+    <line x1="-30" y1="-28" x2="-80" y2="-28" stroke="#ff5252" stroke-width="2.5" opacity="0.6" />
+    <line x1="-30" y1="28" x2="-80" y2="28" stroke="#ff5252" stroke-width="2.5" opacity="0.6" />
+
+    <!-- Jet Body Shadows and Shapes -->
+    <!-- Left Wing -->
+    <polygon points="5,-5 -35,-32 -20,-6" fill="#b71c1c" />
+    <polygon points="5,-5 -30,-30 -15,-5" fill="#d50000" />
+    <!-- Right Wing -->
+    <polygon points="5,5 -35,32 -20,6" fill="#d50000" />
+    <polygon points="5,5 -30,30 -15,5" fill="#ff1744" />
+    
+    <!-- Fuselage / Main Jet Body -->
+    <path d="M 45,0 Q 20,-12 -25,-10 L -40,-2 L -40,2 L -25,10 Q 20,12 45,0 Z" fill="url(#planeGlow)" />
+    <!-- Cockpit Glass Window -->
+    <path d="M 28,-1 Q 15,-6 2,-5 L 2,5 Q 15,6 28,1 Z" fill="#e0f7fa" opacity="0.95" filter="url(#softGlow)" />
+    <!-- Tail Fin -->
+    <polygon points="-28,0 -42,-18 -36,0" fill="#ff5252" />
+    <!-- Wingtip Lights -->
+    <circle cx="-32" cy="-30" r="2.5" fill="#00e676" filter="url(#softGlow)" />
+    <circle cx="-32" cy="30" r="2.5" fill="#ff1744" filter="url(#softGlow)" />
+    <!-- Nosecone Shimmer -->
+    <circle cx="44" cy="0" r="3" fill="#ffffff" filter="url(#softGlow)" />
+  </g>
+
+  <!-- Giant Glowing Multiplier Display -->
+  <g transform="translate(420, 160)" filter="url(#neonGlow)">
+    <text x="0" y="0" font-family="system-ui, -apple-system, sans-serif" font-size="76" font-weight="900" fill="#ffffff" letter-spacing="-1">
+      52.84<tspan fill="#ff1744" font-size="54">x</tspan>
+    </text>
+  </g>
+
+  <!-- Left Side Badges & Futuristic Overlay -->
+  <g transform="translate(50, 60)">
+    <!-- Brand Tag -->
+    <rect x="0" y="0" width="140" height="32" rx="16" fill="#ff1744" fill-opacity="0.2" stroke="#ff1744" stroke-width="1.5" />
+    <circle cx="16" cy="16" r="5" fill="#00e676" filter="url(#softGlow)" />
+    <text x="30" y="21" font-family="system-ui, sans-serif" font-size="12" font-weight="900" fill="#ffffff" letter-spacing="1.5">
+      LIVE RADAR
+    </text>
+  </g>
+
+  <!-- Dynamic Live Cashout Status -->
+  <g transform="translate(50, 120)">
+    <text x="0" y="0" font-family="system-ui, sans-serif" font-size="34" font-weight="900" fill="#ffffff" letter-spacing="0.5">
+      AVIATOR CRASH
+    </text>
+    <text x="0" y="28" font-family="system-ui, sans-serif" font-size="15" font-weight="700" fill="#ff8a80" letter-spacing="0.5">
+      ⚡ MULTIPLIER RISES UNTIL CRASH
+    </text>
+  </g>
+
+  <!-- Bottom Stats Strip -->
+  <g transform="translate(50, 395)">
+    <!-- Stat 1 -->
+    <rect x="0" y="-22" width="110" height="30" rx="8" fill="#000000" fill-opacity="0.6" stroke="#ffffff" stroke-opacity="0.15" />
+    <text x="55" y="-3" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" font-weight="800" fill="#ffffff">
+      MIN BET ₹10
+    </text>
+
+    <!-- Stat 2 -->
+    <rect x="120" y="-22" width="130" height="30" rx="8" fill="#000000" fill-opacity="0.6" stroke="#ffffff" stroke-opacity="0.15" />
+    <text x="185" y="-3" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" font-weight="800" fill="#00e676">
+      AUTO CASHOUT
+    </text>
+
+    <!-- Stat 3 -->
+    <rect x="260" y="-22" width="120" height="30" rx="8" fill="#ff1744" fill-opacity="0.3" stroke="#ff1744" stroke-opacity="0.6" />
+    <text x="320" y="-3" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" font-weight="900" fill="#ffea00">
+      500X MAX WIN
+    </text>
+  </g>
+</svg>

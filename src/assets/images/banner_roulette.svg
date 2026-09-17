@@ -1,0 +1,208 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="100%" height="100%">
+  <defs>
+    <!-- Dark Gold & Electric Navy Background -->
+    <radialGradient id="rouletteBg" cx="65%" cy="50%" r="70%">
+      <stop offset="0%" stop-color="#1f1402" />
+      <stop offset="40%" stop-color="#140a00" />
+      <stop offset="75%" stop-color="#0a0500" />
+      <stop offset="100%" stop-color="#000000" />
+    </radialGradient>
+
+    <!-- Gold Gradients -->
+    <linearGradient id="goldShine" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="25%" stop-color="#ffe082" />
+      <stop offset="50%" stop-color="#ffb300" />
+      <stop offset="75%" stop-color="#ff8f00" />
+      <stop offset="100%" stop-color="#b26a00" />
+    </linearGradient>
+
+    <linearGradient id="wheelRim" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffd54f" />
+      <stop offset="50%" stop-color="#8d5a00" />
+      <stop offset="100%" stop-color="#ffe082" />
+    </linearGradient>
+
+    <linearGradient id="lightningGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="40%" stop-color="#ffea00" />
+      <stop offset="100%" stop-color="#ff9100" />
+    </linearGradient>
+
+    <!-- Glowing Filters -->
+    <filter id="lightningFx" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="7" result="blur1" />
+      <feGaussianBlur stdDeviation="3" result="blur2" />
+      <feMerge>
+        <feMergeNode in="blur1" />
+        <feMergeNode in="blur2" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+
+    <filter id="drop3d" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="6" dy="12" stdDeviation="8" flood-color="#000000" flood-opacity="0.9" />
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="800" height="450" fill="url(#rouletteBg)" />
+
+  <!-- Background Golden Grid / Rays -->
+  <g opacity="0.12" stroke="#ffb300" stroke-width="1">
+    <line x1="580" y1="225" x2="0" y2="0" />
+    <line x1="580" y1="225" x2="0" y2="150" />
+    <line x1="580" y1="225" x2="0" y2="300" />
+    <line x1="580" y1="225" x2="0" y2="450" />
+    <line x1="580" y1="225" x2="300" y2="0" />
+    <line x1="580" y1="225" x2="300" y2="450" />
+  </g>
+
+  <!-- Big 3D Roulette Wheel on the Right -->
+  <g transform="translate(580, 225)" filter="url(#drop3d)">
+    <!-- Outer Wooden / Gold Bowl -->
+    <circle cx="0" cy="0" r="190" fill="#2b1400" stroke="url(#wheelRim)" stroke-width="8" />
+    <circle cx="0" cy="0" r="176" fill="#150800" stroke="#ffb300" stroke-width="2" stroke-dasharray="4,2" />
+
+    <!-- Number Track Rim -->
+    <circle cx="0" cy="0" r="155" fill="#000000" stroke="url(#goldShine)" stroke-width="4" />
+
+    <!-- 12 Illustrated Pockets Alternating Red / Black / Green 0 -->
+    <!-- Green 0 -->
+    <path d="M 0 0 L 0 -155 A 155 155 0 0 1 40 -150 Z" fill="#00c853" stroke="#ffd54f" stroke-width="1" />
+    <!-- Red -->
+    <path d="M 0 0 L 40 -150 A 155 155 0 0 1 78 -134 Z" fill="#d50000" stroke="#ffd54f" stroke-width="1" />
+    <!-- Black -->
+    <path d="M 0 0 L 78 -134 A 155 155 0 0 1 110 -109 Z" fill="#1a1a1a" stroke="#ffd54f" stroke-width="1" />
+    <!-- Red -->
+    <path d="M 0 0 L 110 -109 A 155 155 0 0 1 134 -78 Z" fill="#d50000" stroke="#ffd54f" stroke-width="1" />
+    <!-- Black -->
+    <path d="M 0 0 L 134 -78 A 155 155 0 0 1 150 -40 Z" fill="#1a1a1a" stroke="#ffd54f" stroke-width="1" />
+    <!-- Red -->
+    <path d="M 0 0 L 150 -40 A 155 155 0 0 1 155 0 Z" fill="#d50000" stroke="#ffd54f" stroke-width="1" />
+    <!-- Black -->
+    <path d="M 0 0 L 155 0 A 155 155 0 0 1 150 40 Z" fill="#1a1a1a" stroke="#ffd54f" stroke-width="1" />
+    <!-- Red -->
+    <path d="M 0 0 L 150 40 A 155 155 0 0 1 134 78 Z" fill="#d50000" stroke="#ffd54f" stroke-width="1" />
+    <!-- Black -->
+    <path d="M 0 0 L 134 78 A 155 155 0 0 1 110 109 Z" fill="#1a1a1a" stroke="#ffd54f" stroke-width="1" />
+    <!-- Red -->
+    <path d="M 0 0 L 110 109 A 155 155 0 0 1 78 134 Z" fill="#d50000" stroke="#ffd54f" stroke-width="1" />
+    <!-- Black -->
+    <path d="M 0 0 L 78 134 A 155 155 0 0 1 40 150 Z" fill="#1a1a1a" stroke="#ffd54f" stroke-width="1" />
+    <!-- Red -->
+    <path d="M 0 0 L 40 150 A 155 155 0 0 1 0 155 Z" fill="#d50000" stroke="#ffd54f" stroke-width="1" />
+    <!-- Left Half Segments (Mirrored) -->
+    <path d="M 0 0 L 0 155 A 155 155 0 0 1 -155 0 Z" fill="#1a1a1a" stroke="#ffd54f" stroke-width="1" />
+    <path d="M 0 0 L -155 0 A 155 155 0 0 1 0 -155 Z" fill="#d50000" stroke="#ffd54f" stroke-width="1" />
+
+    <!-- Inner Cone Bowl & Center Turret -->
+    <circle cx="0" cy="0" r="100" fill="#201000" stroke="url(#goldShine)" stroke-width="3" />
+    <circle cx="0" cy="0" r="60" fill="url(#wheelRim)" stroke="#ffffff" stroke-width="1" />
+
+    <!-- 4-Spoke Golden Center Cross Turret -->
+    <g fill="url(#goldShine)" filter="url(#drop3d)">
+      <polygon points="-8,-45 8,-45 4,-12 -4,-12" />
+      <polygon points="-8,45 8,45 4,12 -4,12" />
+      <polygon points="-45,-8 -45,8 -12,4 -12,-4" />
+      <polygon points="45,-8 45,8 12,4 12,-4" />
+      <circle cx="0" cy="0" r="22" fill="url(#goldShine)" stroke="#ffffff" stroke-width="1.5" />
+      <circle cx="0" cy="0" r="8" fill="#5d4037" />
+    </g>
+
+    <!-- Shiny Ivory Roulette Ball -->
+    <circle cx="108" cy="-88" r="9" fill="#ffffff" filter="url(#lightningFx)" />
+    <circle cx="106" cy="-90" r="3" fill="#ffffff" />
+  </g>
+
+  <!-- Giant Electric Lightning Bolts Striking the Wheel -->
+  <g filter="url(#lightningFx)">
+    <!-- Bolt 1 -->
+    <path d="M 380 0 L 440 100 L 410 110 L 490 200 L 470 205 L 530 280" fill="none" stroke="url(#lightningGlow)" stroke-width="4.5" stroke-linecap="round" />
+    <!-- Bolt 2 Core -->
+    <path d="M 380 0 L 440 100 L 410 110 L 490 200 L 470 205 L 530 280" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" />
+
+    <!-- Minor Bolt 2 -->
+    <path d="M 440 100 L 510 90 L 540 130" fill="none" stroke="#ffea00" stroke-width="2.5" stroke-linecap="round" />
+  </g>
+
+  <!-- Left Content: Hindi Lightning Roulette Info -->
+  <g transform="translate(60, 75)">
+    <!-- Tag -->
+    <rect x="0" y="-22" width="145" height="28" rx="14" fill="#ffb300" fill-opacity="0.2" stroke="#ffb300" stroke-width="1.5" />
+    <circle cx="14" cy="-8" r="4" fill="#ffea00" filter="url(#lightningFx)" />
+    <text x="26" y="-4" font-family="system-ui, sans-serif" font-size="11" font-weight="900" fill="#ffffff" letter-spacing="1">
+      HINDI DEALER LIVE
+    </text>
+
+    <!-- Main Title -->
+    <text x="0" y="32" font-family="system-ui, sans-serif" font-size="34" font-weight="900" fill="#ffffff" letter-spacing="0.5">
+      LIGHTNING ROULETTE
+    </text>
+    
+    <text x="0" y="58" font-family="system-ui, sans-serif" font-size="14" font-weight="700" fill="#ffd54f">
+      ⚡ ELECTRIC 500X LUCKY MULTIPLIERS
+    </text>
+  </g>
+
+  <!-- Multiplier Cards Highlight on Left/Bottom -->
+  <g transform="translate(60, 190)">
+    <!-- 500x Lucky Number 7 Card -->
+    <g transform="translate(0, 0)" filter="url(#drop3d)">
+      <rect width="80" height="95" rx="10" fill="#1b1202" stroke="#ffb300" stroke-width="2" />
+      <rect x="0" y="0" width="80" height="24" rx="8" fill="#ffb300" />
+      <text x="40" y="17" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12" font-weight="900" fill="#000000">
+        500X
+      </text>
+      <text x="40" y="65" text-anchor="middle" font-family="system-ui, sans-serif" font-size="32" font-weight="900" fill="#d50000">
+        7
+      </text>
+      <text x="40" y="85" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9" font-weight="800" fill="#ffd54f">
+        RED
+      </text>
+    </g>
+
+    <!-- 200x Lucky Number 29 Card -->
+    <g transform="translate(95, 0)" filter="url(#drop3d)">
+      <rect width="80" height="95" rx="10" fill="#1b1202" stroke="#ffb300" stroke-width="2" />
+      <rect x="0" y="0" width="80" height="24" rx="8" fill="#ffea00" />
+      <text x="40" y="17" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12" font-weight="900" fill="#000000">
+        200X
+      </text>
+      <text x="40" y="65" text-anchor="middle" font-family="system-ui, sans-serif" font-size="32" font-weight="900" fill="#ffffff">
+        29
+      </text>
+      <text x="40" y="85" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9" font-weight="800" fill="#aaaaaa">
+        BLACK
+      </text>
+    </g>
+
+    <!-- 100x Lucky Number 0 Green Card -->
+    <g transform="translate(190, 0)" filter="url(#drop3d)">
+      <rect width="80" height="95" rx="10" fill="#1b1202" stroke="#00e676" stroke-width="2" />
+      <rect x="0" y="0" width="80" height="24" rx="8" fill="#00e676" />
+      <text x="40" y="17" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12" font-weight="900" fill="#000000">
+        100X
+      </text>
+      <text x="40" y="65" text-anchor="middle" font-family="system-ui, sans-serif" font-size="32" font-weight="900" fill="#00e676">
+        0
+      </text>
+      <text x="40" y="85" text-anchor="middle" font-family="system-ui, sans-serif" font-size="9" font-weight="800" fill="#81c784">
+        GREEN
+      </text>
+    </g>
+  </g>
+
+  <!-- Bottom CTA & Features Strip -->
+  <g transform="translate(60, 395)">
+    <rect x="0" y="-22" width="110" height="30" rx="8" fill="#000000" fill-opacity="0.6" stroke="#ffb300" stroke-opacity="0.4" />
+    <text x="55" y="-3" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" font-weight="800" fill="#ffffff">
+      MIN BET ₹10
+    </text>
+
+    <rect x="120" y="-22" width="140" height="30" rx="8" fill="#ffb300" fill-opacity="0.25" stroke="#ffb300" stroke-width="1.5" />
+    <text x="190" y="-3" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" font-weight="900" fill="#ffea00">
+      ⚡ 37 POCKET 3D
+    </text>
+  </g>
+</svg>

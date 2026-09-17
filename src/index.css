@@ -1,0 +1,812 @@
+@import "tailwindcss";
+
+html {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  touch-action: manipulation;
+}
+
+body {
+  overflow-x: hidden;
+  text-rendering: optimizeSpeed;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #020617;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+#root {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* GPU Hardware Acceleration Helper */
+.gpu-accelerate {
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  perspective: 1000px;
+  will-change: transform, opacity;
+}
+
+/* Performance Containment for Smooth Mobile & Low-End Device Scrolling */
+.smooth-scroll-contain {
+  -webkit-overflow-scrolling: touch;
+  contain: paint layout;
+  will-change: scroll-position;
+}
+
+/* Instant Fast Tap Response for Buttons & Interactive Controls */
+button, a, input, select, textarea, [role="button"] {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@keyframes marquee {
+  0% {
+    transform: translate3d(0%, 0, 0);
+  }
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+.animate-marquee {
+  animation: marquee 25s linear infinite;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
+@keyframes vibrate {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+  20% { transform: translate3d(-1.5px, 1px, 0) rotate(-1deg); }
+  40% { transform: translate3d(1.5px, -1px, 0) rotate(1deg); }
+  60% { transform: translate3d(-1px, -1px, 0) rotate(0.5deg); }
+  80% { transform: translate3d(1px, 1.5px, 0) rotate(-0.5deg); }
+}
+
+.animate-vibrate {
+  animation: vibrate 0.6s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* Custom Gold Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #020617;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #f59e0b;
+}
+
+/* Premium HD Gold Luxury Background Mesh - Ultra-lightweight scrollable without repainting */
+.gold-bg-hd {
+  background-color: #020617;
+  background-image: 
+    radial-gradient(circle at 15% 15%, rgba(245, 158, 11, 0.15) 0%, transparent 45%),
+    radial-gradient(circle at 85% 45%, rgba(217, 119, 6, 0.12) 0%, transparent 50%),
+    radial-gradient(circle at 50% 85%, rgba(251, 191, 36, 0.10) 0%, transparent 55%),
+    radial-gradient(circle at 30% 60%, rgba(180, 83, 9, 0.08) 0%, transparent 40%),
+    linear-gradient(180deg, #030712 0%, #020617 50%, #0f172a 100%);
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+/* Round Rainbow Shadow Animation - GPU Composited */
+@keyframes rainbow-shadow-anim {
+  0% {
+    border-color: rgba(245, 158, 11, 0.6);
+  }
+  25% {
+    border-color: rgba(16, 185, 129, 0.6);
+  }
+  50% {
+    border-color: rgba(6, 182, 212, 0.6);
+  }
+  75% {
+    border-color: rgba(168, 85, 247, 0.6);
+  }
+  100% {
+    border-color: rgba(245, 158, 11, 0.6);
+  }
+}
+
+.rainbow-shadow-glow {
+  box-shadow: 0 0 24px rgba(245, 158, 11, 0.35);
+  animation: rainbow-shadow-anim 6s linear infinite;
+  will-change: border-color;
+}
+
+/* Rainbow Animated Border for Live Card Sections */
+@keyframes rainbow-gradient-move {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* 360-Degree Continuous Rotating Rainbow Spin Border Animation - Hardware Composited */
+@keyframes rainbow-spin-rotate {
+  0% {
+    transform: translate3d(-50%, -50%, 0) rotate(0deg);
+  }
+  100% {
+    transform: translate3d(-50%, -50%, 0) rotate(360deg);
+  }
+}
+
+.rainbow-spin-border-wrap {
+  position: relative;
+  border-radius: 1.15rem; /* ~18px */
+  padding: 2px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6), 0 0 15px rgba(255, 0, 128, 0.25);
+  cursor: pointer;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
+  contain: layout paint;
+}
+
+.rainbow-spin-border-wrap:hover {
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.8), 0 0 25px rgba(255, 0, 128, 0.5);
+  transform: translate3d(0, -2px, 0);
+}
+
+/* =========================================================
+   Casino CTA Button Vibration & 3D Glowing Shadow Animations
+   (Optimized using GPU transform and opacity layers)
+   ========================================================= */
+@keyframes casino-vibrate-pulse {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  4% {
+    transform: translate3d(-1px, 1px, 0) scale(1.03);
+  }
+  8% {
+    transform: translate3d(1px, -1px, 0) scale(1.03);
+  }
+  12% {
+    transform: translate3d(-1px, 0.5px, 0) scale(1.04);
+  }
+  16% {
+    transform: translate3d(1px, 1px, 0) scale(1.04);
+  }
+  20% {
+    transform: translate3d(0, 0, 0) scale(1.02);
+  }
+  28%, 100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.casino-btn-vibe-rose {
+  animation: casino-vibrate-pulse 3s cubic-bezier(0.25, 1, 0.5, 1) infinite;
+  transform-origin: center center;
+  will-change: transform;
+  box-shadow: 0 4px 14px rgba(225, 29, 72, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.5);
+}
+
+.casino-btn-vibe-emerald {
+  animation: casino-vibrate-pulse 3s cubic-bezier(0.25, 1, 0.5, 1) 0.75s infinite;
+  transform-origin: center center;
+  will-change: transform;
+  box-shadow: 0 4px 14px rgba(5, 150, 105, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.5);
+}
+
+.casino-btn-vibe-amber {
+  animation: casino-vibrate-pulse 3s cubic-bezier(0.25, 1, 0.5, 1) 1.5s infinite;
+  transform-origin: center center;
+  will-change: transform;
+  box-shadow: 0 4px 14px rgba(217, 119, 6, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.7);
+}
+
+.casino-btn-vibe-red {
+  animation: casino-vibrate-pulse 3s cubic-bezier(0.25, 1, 0.5, 1) 2.25s infinite;
+  transform-origin: center center;
+  will-change: transform;
+  box-shadow: 0 4px 14px rgba(220, 38, 38, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.5);
+}
+
+.rainbow-spin-border-wrap::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 250%;
+  height: 250%;
+  background: conic-gradient(
+    from 0deg,
+    #ff0055,
+    #ff6600,
+    #ffea00,
+    #00ff66,
+    #00ffff,
+    #3b82f6,
+    #b026ff,
+    #ff00aa,
+    #ff0055
+  );
+  animation: rainbow-spin-rotate 4s linear infinite;
+  z-index: 0;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.rainbow-spin-border-inner {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  border-radius: 1rem; /* 16px */
+  overflow: hidden;
+  background-color: #0b1120;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 205px;
+}
+
+@media (min-width: 640px) {
+  .rainbow-spin-border-inner {
+    min-height: 225px;
+  }
+}
+
+.rainbow-card-highlight {
+  position: relative;
+  z-index: 1;
+}
+
+.rainbow-card-highlight::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  padding: 2px;
+  background: linear-gradient(90deg, #ff007f, #ff7b00, #facc15, #00ff88, #00d4ff, #a855f7, #ff007f);
+  background-size: 300% 300%;
+  animation: rainbow-gradient-move 3.5s linear infinite;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.rainbow-box-glow {
+  background: linear-gradient(135deg, rgba(255,0,128,0.15), rgba(0,212,255,0.15), rgba(0,255,136,0.15));
+  box-shadow: 0 0 20px rgba(0,212,255,0.25), 0 0 40px rgba(255,0,128,0.15);
+}
+
+.golden-shadow-btn {
+  box-shadow: 0 4px 20px -2px rgba(245, 158, 11, 0.35);
+  transition: all 0.2s ease-in-out;
+}
+
+.golden-shadow-btn:hover {
+  box-shadow: 0 6px 28px 0px rgba(245, 158, 11, 0.55);
+  transform: translateY(-1px);
+}
+
+/* Red Signal Zoom In / Zoom Out Animation for Loss */
+@keyframes pulse-zoom-red-anim {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 10px rgba(244, 63, 94, 0.3);
+  }
+  50% {
+    transform: scale(1.08);
+    box-shadow: 0 0 22px rgba(244, 63, 94, 0.8);
+  }
+}
+
+.animate-zoom-red {
+  animation: pulse-zoom-red-anim 1.5s ease-in-out infinite;
+}
+
+/* Green Signal Zoom In / Zoom Out Animation for Win */
+@keyframes pulse-zoom-green-anim {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
+  }
+  50% {
+    transform: scale(1.08);
+    box-shadow: 0 0 22px rgba(16, 185, 129, 0.8);
+  }
+}
+
+.animate-zoom-green {
+  animation: pulse-zoom-green-anim 1.5s ease-in-out infinite;
+}
+
+/* Electric Lightning Strike Animations for Lightning Roulette (Smooth Realistic Electric Bolts - No Shaking) */
+@keyframes lightning-border-plasma {
+  0%, 100% {
+    box-shadow: 0 0 16px rgba(245, 158, 11, 0.95), inset 0 0 12px rgba(251, 191, 36, 0.8), 0 0 32px rgba(245, 158, 11, 0.6);
+    border-color: #fbbf24;
+  }
+  25% {
+    box-shadow: 0 0 24px rgba(56, 189, 248, 1), inset 0 0 14px rgba(125, 211, 252, 0.9), 0 0 40px rgba(56, 189, 248, 0.8);
+    border-color: #e0f2fe;
+  }
+  50% {
+    box-shadow: 0 0 28px rgba(255, 255, 255, 1), inset 0 0 16px rgba(254, 240, 138, 0.95), 0 0 50px rgba(250, 204, 21, 0.9);
+    border-color: #ffffff;
+  }
+  75% {
+    box-shadow: 0 0 22px rgba(168, 85, 247, 0.95), inset 0 0 12px rgba(216, 180, 254, 0.85), 0 0 36px rgba(168, 85, 247, 0.7);
+    border-color: #f3e8ff;
+  }
+}
+
+.animate-lightning-strike {
+  animation: lightning-border-plasma 1s infinite ease-in-out;
+}
+
+/* Crackling Thunder Electric Arc */
+@keyframes electric-crackle {
+  0%, 100% {
+    filter: drop-shadow(0 0 4px #fbbf24) drop-shadow(0 0 12px #38bdf8);
+    opacity: 0.9;
+  }
+  15% {
+    filter: drop-shadow(0 0 16px #ffffff) drop-shadow(0 0 24px #38bdf8) brightness(2.2);
+    opacity: 1;
+  }
+  35% {
+    filter: drop-shadow(0 0 6px #f59e0b) drop-shadow(0 0 14px #eab308);
+    opacity: 0.8;
+  }
+  60% {
+    filter: drop-shadow(0 0 18px #38bdf8) drop-shadow(0 0 30px #ffffff) brightness(2.5);
+    opacity: 1;
+  }
+  85% {
+    filter: drop-shadow(0 0 8px #fbbf24) drop-shadow(0 0 16px #38bdf8);
+    opacity: 0.85;
+  }
+}
+
+.animate-electric-crackle {
+  animation: electric-crackle 0.8s infinite ease-in-out;
+}
+
+/* Realistic Vertical Lightning Bolt Descending From Sky/Top */
+@keyframes lightning-bolt-fall {
+  0% {
+    opacity: 0;
+    transform: translateY(-80%) scaleY(0.2);
+    filter: brightness(3) drop-shadow(0 0 15px #38bdf8);
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(0) scaleY(1);
+    filter: brightness(4) drop-shadow(0 0 25px #ffffff) drop-shadow(0 0 35px #f59e0b);
+  }
+  30% {
+    opacity: 0.3;
+    transform: translateY(0) scaleY(1);
+  }
+  45% {
+    opacity: 1;
+    transform: translateY(0) scaleY(1.05);
+    filter: brightness(3.5) drop-shadow(0 0 20px #38bdf8);
+  }
+  70% {
+    opacity: 0.85;
+    transform: translateY(0) scaleY(1);
+  }
+  100% {
+    opacity: 0.95;
+    transform: translateY(0) scaleY(1);
+    filter: brightness(2) drop-shadow(0 0 12px #fbbf24);
+  }
+}
+
+.animate-lightning-bolt {
+  animation: lightning-bolt-fall 0.8s ease-out infinite alternate;
+  transform-origin: top center;
+}
+
+/* Golden Art-Deco Card Reveal for Hindi Lightning Roulette */
+@keyframes gold-card-drop {
+  0% {
+    opacity: 0;
+    transform: translateY(-50px) scale(0.7) rotateX(45deg);
+    filter: brightness(3) drop-shadow(0 0 25px #fbbf24);
+  }
+  60% {
+    transform: translateY(4px) scale(1.04) rotateX(0deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotateX(0deg);
+    filter: brightness(1) drop-shadow(0 0 15px rgba(245, 158, 11, 0.7));
+  }
+}
+
+.animate-gold-card {
+  animation: gold-card-drop 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Winner Zoom Pocket Animation */
+@keyframes winner-pocket-zoom {
+  0% {
+    opacity: 0;
+    transform: scale(0.6) translateY(20px);
+  }
+  50% {
+    transform: scale(1.1) translateY(-4px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-winner-zoom {
+  animation: winner-pocket-zoom 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Live Floating Winners Toast */
+@keyframes winner-toast-slide {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.9);
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  85% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.9);
+  }
+}
+
+.animate-winner-toast {
+  animation: winner-toast-slide 3.5s ease-in-out forwards;
+}
+
+/* Golden Lotus Center Ambient Glow */
+@keyframes lotus-glow {
+  0%, 100% {
+    filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.6)) brightness(1);
+  }
+  50% {
+    filter: drop-shadow(0 0 18px rgba(251, 191, 36, 0.9)) brightness(1.2);
+  }
+}
+
+.animate-lotus-glow {
+  animation: lotus-glow 2.5s infinite ease-in-out;
+}
+
+/* Ground Spark Burst at contact point */
+@keyframes spark-plasma-pulse {
+  0%, 100% {
+    transform: scale(0.9);
+    opacity: 0.7;
+    filter: drop-shadow(0 0 6px #f59e0b);
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 1;
+    filter: drop-shadow(0 0 14px #ffffff) drop-shadow(0 0 20px #38bdf8);
+  }
+}
+
+.animate-spark-plasma {
+  animation: spark-plasma-pulse 0.7s infinite ease-in-out;
+}
+
+@keyframes lightning-flash-overlay {
+  0% { opacity: 0; }
+  10%, 25% { opacity: 0.75; }
+  15%, 35% { opacity: 0.15; }
+  45% { opacity: 0.9; }
+  60% { opacity: 0.25; }
+  100% { opacity: 0; }
+}
+
+.animate-lightning-flash {
+  animation: lightning-flash-overlay 1.2s ease-out forwards;
+}
+
+/* 💎 Diamond Icon 360-degree Continuous Roll & Sparkle Animation */
+@keyframes diamond-roll {
+  0% {
+    transform: rotate(0deg) scale(1);
+    filter: drop-shadow(0 0 4px rgba(56, 189, 248, 0.7));
+  }
+  25% {
+    transform: rotate(90deg) scale(1.18);
+    filter: drop-shadow(0 0 10px rgba(168, 85, 247, 0.9)) drop-shadow(0 0 15px rgba(56, 189, 248, 0.8));
+  }
+  50% {
+    transform: rotate(180deg) scale(1.05);
+    filter: drop-shadow(0 0 16px rgba(56, 189, 248, 1)) drop-shadow(0 0 22px rgba(236, 72, 153, 0.8));
+  }
+  75% {
+    transform: rotate(270deg) scale(1.18);
+    filter: drop-shadow(0 0 10px rgba(244, 114, 182, 0.9)) drop-shadow(0 0 15px rgba(168, 85, 247, 0.8));
+  }
+  100% {
+    transform: rotate(360deg) scale(1);
+    filter: drop-shadow(0 0 4px rgba(56, 189, 248, 0.7));
+  }
+}
+
+.animate-diamond-roll {
+  display: inline-block;
+  animation: diamond-roll 3.2s linear infinite;
+  transform-origin: center center;
+  will-change: transform, filter;
+}
+
+/* Smooth Horizontal Diamond/Gold Sheen */
+@keyframes vip-metallic-sheen {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-vip-sheen {
+  background-size: 200% auto;
+  animation: vip-metallic-sheen 3s linear infinite;
+}
+
+/* Diamond Badge Outer Holographic Aura */
+@keyframes diamond-hologram-pulse {
+  0%, 100% {
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.4), 0 0 20px rgba(168, 85, 247, 0.25);
+    border-color: rgba(125, 211, 252, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(56, 189, 248, 0.7), 0 0 35px rgba(236, 72, 153, 0.45);
+    border-color: rgba(244, 114, 182, 0.9);
+  }
+}
+
+.animate-diamond-badge {
+  animation: diamond-hologram-pulse 2.8s ease-in-out infinite;
+}
+
+/* ========================================================================= */
+/* 🔥 REALISTIC HD FIRE BLAZE & BURNING GLOW ANIMATION                       */
+/* ========================================================================= */
+@keyframes fire-border-blaze {
+  0% {
+    box-shadow: 
+      0 0 10px rgba(255, 69, 0, 0.7),
+      0 0 22px rgba(255, 140, 0, 0.6),
+      0 0 38px rgba(255, 215, 0, 0.4),
+      inset 0 0 12px rgba(255, 69, 0, 0.5);
+    border-color: rgba(255, 100, 0, 0.85);
+  }
+  33% {
+    box-shadow: 
+      0 0 16px rgba(255, 30, 0, 0.9),
+      0 0 32px rgba(255, 120, 0, 0.75),
+      0 0 52px rgba(255, 200, 0, 0.55),
+      inset 0 0 18px rgba(255, 100, 0, 0.7);
+    border-color: rgba(255, 215, 0, 0.95);
+  }
+  66% {
+    box-shadow: 
+      0 0 14px rgba(255, 90, 0, 0.8),
+      0 0 28px rgba(255, 50, 0, 0.7),
+      0 0 44px rgba(255, 180, 0, 0.45),
+      inset 0 0 14px rgba(255, 40, 0, 0.6);
+    border-color: rgba(255, 70, 0, 0.9);
+  }
+  100% {
+    box-shadow: 
+      0 0 10px rgba(255, 69, 0, 0.7),
+      0 0 22px rgba(255, 140, 0, 0.6),
+      0 0 38px rgba(255, 215, 0, 0.4),
+      inset 0 0 12px rgba(255, 69, 0, 0.5);
+    border-color: rgba(255, 100, 0, 0.85);
+  }
+}
+
+@keyframes fire-gentle-tremor {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  20% {
+    transform: translate3d(-1px, 0.5px, 0) scale(1.003);
+  }
+  40% {
+    transform: translate3d(1.2px, -0.8px, 0) scale(1.005);
+  }
+  60% {
+    transform: translate3d(-0.8px, -0.5px, 0) scale(1.002);
+  }
+  80% {
+    transform: translate3d(1px, 0.8px, 0) scale(1.004);
+  }
+}
+
+@keyframes flame-flare-shimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-fire-blaze {
+  animation: fire-border-blaze 1.8s ease-in-out infinite;
+}
+
+.animate-fire-tremor {
+  animation: fire-gentle-tremor 3.2s ease-in-out infinite;
+}
+
+.animate-flame-gradient {
+  background-size: 250% 250%;
+  animation: flame-flare-shimmer 3s ease infinite;
+}
+
+/* ========================================================================= */
+/* ⚡ HIGH-VOLTAGE LIGHTNING NUMBER & MULTIPLIER BLINKING (উভয় প্যানেল সিঙ্ক) */
+/* ========================================================================= */
+@keyframes lightning-number-blink {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1.05);
+    box-shadow: 0 0 22px rgba(251, 191, 36, 1), 0 0 45px rgba(245, 158, 11, 0.85), inset 0 0 16px rgba(251, 191, 36, 0.95);
+    border-color: #fef08a;
+    filter: brightness(1.35);
+  }
+  50% {
+    opacity: 0.3;
+    transform: scale(0.96);
+    box-shadow: 0 0 4px rgba(251, 191, 36, 0.2);
+    border-color: #d97706;
+    filter: brightness(0.8);
+  }
+}
+
+@keyframes lightning-multiplier-blink {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1.12);
+    background-color: #fbbf24;
+    color: #020617;
+    box-shadow: 0 0 16px rgba(251, 191, 36, 1), 0 0 25px rgba(245, 158, 11, 0.8);
+    border-color: #ffffff;
+  }
+  50% {
+    opacity: 0.25;
+    transform: scale(0.92);
+    background-color: #78350f;
+    color: #fef08a;
+    box-shadow: 0 0 2px rgba(251, 191, 36, 0.2);
+    border-color: rgba(251, 191, 36, 0.3);
+  }
+}
+
+.animate-lightning-blink {
+  animation: lightning-number-blink 0.65s infinite ease-in-out !important;
+}
+
+.animate-multiplier-blink {
+  animation: lightning-multiplier-blink 0.65s infinite ease-in-out !important;
+}
+
+/* ========================================================================= */
+/* ⚡ HIGH-VOLTAGE ELECTRIC SHOCK & HEADER LIGHTNING STRIKE ANIMATIONS       */
+/* ========================================================================= */
+
+/* Intense high-frequency electric shock vibration */
+@keyframes electric-shock-jitter {
+  0% { transform: translate3d(0, 0, 0) scale(1.08) rotate(0deg); }
+  10% { transform: translate3d(-3px, 2px, 0) scale(1.12) rotate(-1.5deg); }
+  20% { transform: translate3d(4px, -3px, 0) scale(1.06) rotate(2deg); }
+  30% { transform: translate3d(-4px, -2px, 0) scale(1.14) rotate(-2deg); }
+  40% { transform: translate3d(3px, 3px, 0) scale(1.08) rotate(1deg); }
+  50% { transform: translate3d(-2px, 4px, 0) scale(1.15) rotate(-1deg); }
+  60% { transform: translate3d(4px, -2px, 0) scale(1.1) rotate(2.5deg); }
+  70% { transform: translate3d(-3px, 1px, 0) scale(1.13) rotate(-2deg); }
+  80% { transform: translate3d(2px, -3px, 0) scale(1.07) rotate(1deg); }
+  90% { transform: translate3d(-1px, 2px, 0) scale(1.11) rotate(-0.5deg); }
+  100% { transform: translate3d(0, 0, 0) scale(1.08) rotate(0deg); }
+}
+
+.animate-electric-shock {
+  animation: electric-shock-jitter 0.08s infinite ease-in-out !important;
+  will-change: transform;
+}
+
+/* Screen Thunder Flash */
+@keyframes thunder-screen-flash-anim {
+  0% { opacity: 0; }
+  10% { opacity: 0.85; }
+  20% { opacity: 0.2; }
+  35% { opacity: 0.95; }
+  60% { opacity: 0.3; }
+  80% { opacity: 0.1; }
+  100% { opacity: 0; }
+}
+
+.animate-thunder-flash {
+  animation: thunder-screen-flash-anim 0.55s ease-out forwards;
+}
+
+/* Header Lightning Arc Surge */
+@keyframes header-lightning-surge-anim {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.4), 0 0 25px rgba(245, 158, 11, 0.5);
+    border-color: rgba(251, 191, 36, 0.7);
+  }
+  25% {
+    box-shadow: 0 0 30px rgba(56, 189, 248, 0.9), 0 0 60px rgba(251, 191, 36, 1);
+    border-color: #38bdf8;
+  }
+  50% {
+    box-shadow: 0 0 15px rgba(251, 191, 36, 0.6), 0 0 35px rgba(56, 189, 248, 0.7);
+    border-color: #fef08a;
+  }
+  75% {
+    box-shadow: 0 0 35px rgba(245, 158, 11, 1), 0 0 70px rgba(56, 189, 248, 0.95);
+    border-color: #ffffff;
+  }
+}
+
+.animate-header-surge {
+  animation: header-lightning-surge-anim 0.2s infinite ease-in-out;
+}
+
+/* Electric Sparks Radial Pulse */
+@keyframes electric-sparks-pulse {
+  0% {
+    transform: scale(0.6) rotate(0deg);
+    opacity: 0.2;
+  }
+  50% {
+    transform: scale(1.35) rotate(180deg);
+    opacity: 1;
+    filter: drop-shadow(0 0 12px #38bdf8) drop-shadow(0 0 20px #fbbf24);
+  }
+  100% {
+    transform: scale(1.8) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+.animate-electric-sparks {
+  animation: electric-sparks-pulse 0.45s infinite ease-out;
+}

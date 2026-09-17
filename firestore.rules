@@ -1,0 +1,285 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Server-side role verification via Firebase Custom Claims & Admin Emails
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.get('role', '') in ['admin', 'super_admin'] ||
+        request.auth.token.get('admin', false) == true ||
+        request.auth.token.get('super_admin', false) == true ||
+        request.auth.token.email.lower() in [
+          'depositebetguru@gmail.com',
+          'betgurusecurityteam@gmail.com',
+          'betgurusocial@gmail.com',
+          'nahidaliakttar@gmail.com',
+          'sudhashee5@gmail.com',
+          'babu.cash11@gmail.com',
+          'ayanruhusakh@gmail.com',
+          'betgurucare@gmail.com',
+          'tanmoysarma1995@gmail.com',
+          'agentmriganko@gmail.com',
+          'santanuk7001@gmail.com',
+          'officialbguru@gmail.com',
+          'subhasishpramanik835@gmail.com',
+          'asishp92@gmail.com',
+          'asishp980@gmail.com',
+          'asish1winagent@gmail.com',
+          'asishpcash@gmail.com',
+          'sampamandalp@gmail.com',
+          'sampapramaink@gmail.com',
+          'sampapramanik@gmail.com',
+          'lottarykrishna@gmail.com',
+          'alamuddinsk4553@gmail.com',
+          'babutechnical805@gmail.com'
+        ]
+      );
+    }
+
+    // Banned Users / Blacklist collection
+    match /banned_users/{banId} {
+      allow read, write, delete: if true;
+    }
+
+    // Payment Config collection
+    match /payment_config/{configId} {
+      allow read, write: if true;
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read, write, delete: if true;
+    }
+
+    // Draws collection & Results
+    match /draws/{drawId} {
+      allow read, write, delete: if true;
+    }
+    match /draw_results/{resultId} {
+      allow read, write, delete: if true;
+    }
+
+    // Deposits collection
+    match /deposits/{depositId} {
+      allow read, write, delete: if true;
+    }
+
+    // Promo Codes & Redemptions
+    match /promo_codes/{codeId} {
+      allow read, write, delete: if true;
+    }
+    match /promo_redemptions/{redemptionId} {
+      allow read, write, delete: if true;
+    }
+
+    // Withdrawals collection
+    match /withdrawals/{withdrawalId} {
+      allow read, write, delete: if true;
+    }
+
+    // Tickets collection
+    match /tickets/{ticketId} {
+      allow read, write, delete: if true;
+    }
+
+    // Transactions collection
+    match /transactions/{transactionId} {
+      allow read, write, delete: if true;
+    }
+
+    // Notifications collection (User Notifications)
+    match /notifications/{notificationId} {
+      allow read, write, delete: if true;
+    }
+
+    // Admin Notifications collection (Real-time Bell Drawer alerts)
+    match /admin_notifications/{notificationId} {
+      allow read, write, delete: if true;
+    }
+
+    // Analytics collection
+    match /analytics/{analyticsId} {
+      allow read, write, delete: if true;
+    }
+
+    // Super Car Draw collections
+    match /supercar_config/{configId} {
+      allow read, write, delete: if true;
+    }
+    match /supercar_draws/{drawId} {
+      allow read, write, delete: if true;
+    }
+
+    // Connection test document
+    match /_connection_test_/{docId} {
+      allow read, write, delete: if true;
+    }
+
+    // Broadcasts collection
+    match /broadcasts/{broadcastId} {
+      allow read, write, delete: if true;
+    }
+
+    // System Settings collection (e.g. registration_config, smtp_config, system_config)
+    match /system_settings/{settingId} {
+      allow read, write, delete: if true;
+    }
+    match /system_config/{configId} {
+      allow read, write, delete: if true;
+    }
+
+    // Banner Sliders collection
+    match /banner_sliders/{sliderId} {
+      allow read, write, delete: if true;
+    }
+
+    // Promotional Offers & Bonus Rules
+    match /promotional_offers/{offerId} {
+      allow read, write, delete: if true;
+    }
+    match /bonus_rules/{ruleId} {
+      allow read, write, delete: if true;
+    }
+
+    // Crash Game collections
+    match /crash_bets/{betId} {
+      allow read, write, delete: if true;
+    }
+    match /crash_rounds/{roundId} {
+      allow read, write, delete: if true;
+    }
+    match /crash_config/{configId} {
+      allow read, write, delete: if true;
+    }
+
+    // Andar Bahar collections
+    match /andar_bahar_bets/{betId} {
+      allow read, write, delete: if true;
+    }
+    match /andar_bahar_rounds/{roundId} {
+      allow read, write, delete: if true;
+    }
+    match /andar_bahar_config/{configId} {
+      allow read, write, delete: if true;
+    }
+
+    // Dragon Tiger collections
+    match /dragon_tiger_bets/{betId} {
+      allow read, write, delete: if true;
+    }
+    match /dragon_tiger_rounds/{roundId} {
+      allow read, write, delete: if true;
+    }
+    match /dragon_tiger_config/{configId} {
+      allow read, write, delete: if true;
+    }
+
+    // Lucky Wheel config
+    match /wheel_config/{configId} {
+      allow read, write, delete: if true;
+    }
+
+    // Scheduler and Logs
+    match /lottery_schedules/{scheduleId} {
+      allow read, write, delete: if true;
+    }
+    match /admin_audit_logs/{logId} {
+      allow read, write, delete: if true;
+    }
+    match /system_crash_logs/{logId} {
+      allow read, write, delete: if true;
+    }
+    match /smtp_accounts/{accountId} {
+      allow read, write, delete: if true;
+    }
+    match /security_notices/{noticeId} {
+      allow read, write, delete: if true;
+    }
+    match /email_otps/{otpId} {
+      allow read, write, delete: if true;
+    }
+
+    match /game_settings/{settingId} {
+      allow read, write, delete: if true;
+    }
+
+    // Live Support Chat collections
+    match /support_messages/{messageId} {
+      allow read, write, delete: if true;
+    }
+
+    match /support_threads/{threadId} {
+      allow read, write, delete: if true;
+    }
+
+    match /live_activities/{activityId} {
+      allow read, write, delete: if true;
+    }
+
+    match /user_presence/{presenceId} {
+      allow read, write, delete: if true;
+    }
+
+    // Roulette collections
+    match /roulette_live_state/{docId} {
+      allow read, write, delete: if true;
+    }
+
+    match /roulette_config/{docId} {
+      allow read, write, delete: if true;
+    }
+
+    match /roulette_rounds/{roundId} {
+      allow read, write, delete: if true;
+    }
+
+    match /roulette_bets/{betId} {
+      allow read, write, delete: if true;
+    }
+
+    match /roulette_live_bets/{betId} {
+      allow read, write, delete: if true;
+    }
+
+    match /roulette_history/{historyId} {
+      allow read, write, delete: if true;
+    }
+
+    // Live Casino Monitoring & Real-Time Control Collections
+    match /dragon_tiger_live_bets/{betId} {
+      allow read, write, delete: if true;
+    }
+    match /dragon_tiger_live_state/{docId} {
+      allow read, write, delete: if true;
+    }
+
+    match /andar_bahar_live_bets/{betId} {
+      allow read, write, delete: if true;
+    }
+    match /andar_bahar_live_state/{docId} {
+      allow read, write, delete: if true;
+    }
+
+    match /crash_live_bets/{betId} {
+      allow read, write, delete: if true;
+    }
+    match /crash_live_state/{docId} {
+      allow read, write, delete: if true;
+    }
+
+    // Default catch-all
+    match /{document=**} {
+      allow read, write, delete: if true;
+    }
+  }
+}
+

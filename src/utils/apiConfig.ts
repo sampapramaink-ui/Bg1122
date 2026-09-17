@@ -1,0 +1,60 @@
+/**
+ * Global API Configuration & Resilient Push / Cloud Run Dispatcher
+ * Ensures that push notifications and admin alerts work seamlessly
+ * across Google Cloud Run, Vercel, Android APK WebView, and standalone PWAs.
+ */
+
+export const CLOUD_RUN_BACKEND_URL = "https://ais-dev-uollfxwaifo2qfeni3xeyg-73885866611.asia-southeast1.run.app";
+
+/**
+ * Dispatches a POST request with automatic Cloud Run backend fallback.
+ * If running on Vercel or static PWA where local /api returns 404 or fails,
+ * it immediately routes to the production Cloud Run backend with Google Cloud IAM credentials.
+ */
+export async function safeApiPost(endpoint: string, body: any): Promise<{ success: boolean; data?: any; error?: string }> {
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  
+  // 1. Try relative endpoint first (works in Cloud Run container & Vercel serverless)
+  try {
+    const res = await fetch(cleanEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (res.ok) {
+      const data = await res.json().catch(() => ({ success: true }));
+      if (data && data.success !== false) {
+        return { success: true, data };
+      }
+    }
+  } catch (err: any) {
+    console.warn(`Local endpoint ${cleanEndpoint} attempt failed:`, err?.message);
+  }
+
+  // 2. Fallback to live Cloud Run Backend
+  try {
+    const targetUrl = `${CLOUD_RUN_BACKEND_URL}${cleanEndpoint}`;
+    const fallbackRes = await fetch(targetUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (fallbackRes.ok) {
+      const data = await fallbackRes.json().catch(() => ({ success: true }));
+      return { success: true, data };
+    }
+    const errText = await fallbackRes.text().catch(() => 'Unknown error');
+    return { success: false, error: errText };
+  } catch (fallbackErr: any) {
+    console.warn(`Cloud Run fallback for ${cleanEndpoint} failed:`, fallbackErr?.message);
+    return { success: false, error: fallbackErr?.message };
+  }
+}

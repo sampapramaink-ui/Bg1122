@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
+    <title>Remix BETGURU user panel </title>
+    <meta name="description" content="Premium HD Lottery & Gaming Platform with Real-time Draws, Secure Wallet Deposit/Withdrawal, and Admin Management Dashboard" />
+    <meta property="og:title" content="Remix BETGURU user panel " />
+    <meta property="og:description" content="Premium HD Lottery & Gaming Platform with Real-time Draws, Secure Wallet Deposit/Withdrawal, and Admin Management Dashboard" />
+    <meta name="application-name" content="BETGURU" />
+    <meta name="apple-mobile-web-app-title" content="BETGURU" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="theme-color" content="#020617" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/pwa-512x512.png" />
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script>
+      (function() {
+        var isBenign = function(str) {
+          if (!str) return false;
+          var s = String(str).toLowerCase();
+          return s.indexOf('[vite]') !== -1 ||
+                 s.indexOf('failed to connect to websocket') !== -1 ||
+                 s.indexOf('pending promise was never set') !== -1 ||
+                 s.indexOf('internal assertion failed') !== -1 ||
+                 s.indexOf('could not reach cloud firestore backend') !== -1 ||
+                 s.indexOf("backend didn't respond within 10 seconds") !== -1 ||
+                 s.indexOf('the client will operate in offline mode') !== -1 ||
+                 s.indexOf('the client is offline') !== -1 ||
+                 s.indexOf('client is offline') !== -1;
+        };
+        var origErr = console.error;
+        console.error = function() {
+          var msg = Array.prototype.slice.call(arguments).map(function(a) {
+            return typeof a === 'string' ? a : (a && a.message ? a.message : '');
+          }).join(' ');
+          if (isBenign(msg)) return;
+          origErr.apply(console, arguments);
+        };
+        var origWarn = console.warn;
+        console.warn = function() {
+          var msg = Array.prototype.slice.call(arguments).map(function(a) {
+            return typeof a === 'string' ? a : (a && a.message ? a.message : '');
+          }).join(' ');
+          if (isBenign(msg)) return;
+          origWarn.apply(console, arguments);
+        };
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
