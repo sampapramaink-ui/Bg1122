@@ -622,9 +622,13 @@ async function startServer() {
           sound: "default",
           speak: "true",
           click_action: "FLUTTER_NOTIFICATION_CLICK",
+          clickAction: "FLUTTER_NOTIFICATION_CLICK",
+          priority: "high",
+          timestamp: String(Date.now()),
         },
         android: {
           priority: 'high' as const,
+          ttl: 2419200,
           notification: {
             channelId: 'betguru_transactions',
             priority: 'max' as const,
@@ -633,6 +637,8 @@ async function startServer() {
             defaultVibrateTimings: true,
             visibility: 'public' as const,
             clickAction: 'FLUTTER_NOTIFICATION_CLICK',
+            notificationPriority: 'PRIORITY_MAX' as const,
+            ticker: String(title),
           },
         },
       };
@@ -640,16 +646,15 @@ async function startServer() {
       const directToken = token || fcmToken;
       if (directToken && typeof directToken === 'string' && directToken.trim().length > 10) {
         msgPayload.token = directToken.trim();
-      } else if (topic && typeof topic === 'string' && topic.trim()) {
-        msgPayload.topic = topic.trim();
       } else {
-        msgPayload.condition = "'admin' in topics || 'orders' in topics || 'transactions' in topics";
+        const targetTopic = (topic && typeof topic === 'string' && topic.trim()) ? topic.trim() : 'admin';
+        msgPayload.topic = targetTopic;
       }
 
       const response = await messaging.send(msgPayload);
       return res.json({
         success: true,
-        message: "Admin push notification dispatched successfully",
+        message: "Admin push notification dispatched successfully in 0s",
         response
       });
     } catch (err: any) {

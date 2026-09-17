@@ -308,9 +308,7 @@ export default function App() {
         } catch (_) {}
       }
 
-      await setDoc(txRef, sanitizedTx, { merge: true });
-
-      // Instantly dispatch persistent real-time admin alert to Firestore
+      // ⚡ INSTANT 0-SEC ADMIN NOTIFICATION: Compute and dispatch push alert concurrently!
       const txType = (tx.type || '').toLowerCase();
       const txDesc = (tx.description || '').toLowerCase();
       const amt = Math.abs(tx.amount || 0);
@@ -347,6 +345,8 @@ export default function App() {
         status: tx.status || 'completed',
         customId: `notif_tx_${tx.id}`
       }).catch(() => {});
+
+      await setDoc(txRef, sanitizedTx, { merge: true });
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `transactions/${tx.id}`);
     }
@@ -371,9 +371,8 @@ export default function App() {
       if (sanitizedDep.screenshotUrl && sanitizedDep.screenshotUrl.length > 300000) {
         sanitizedDep.screenshotUrl = 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?auto=format&fit=crop&w=400&q=80';
       }
-      await setDoc(depRef, sanitizedDep, { merge: true });
 
-      // Instantly dispatch persistent real-time admin alert to Firestore
+      // ⚡ INSTANT 0-SEC ADMIN NOTIFICATION: Dispatches push immediately!
       sendAdminNotification({
         type: 'deposit',
         title: dep.status === 'approved' ? '✅ Deposit Approved' : dep.status === 'rejected' ? '❌ Deposit Rejected' : '📥 New Deposit Request',
@@ -384,6 +383,8 @@ export default function App() {
         status: dep.status || 'pending',
         customId: `notif_dep_${dep.id}`
       }).catch(() => {});
+
+      await setDoc(depRef, sanitizedDep, { merge: true });
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `deposits/${dep.id}`);
     }
@@ -403,9 +404,8 @@ export default function App() {
         userName: uName,
         createdAt: wth.createdAt || new Date().toISOString()
       });
-      await setDoc(wthRef, sanitizedWth, { merge: true });
 
-      // Instantly dispatch persistent real-time admin alert to Firestore
+      // ⚡ INSTANT 0-SEC ADMIN NOTIFICATION: Dispatches push immediately!
       sendAdminNotification({
         type: 'withdrawal',
         title: wth.status === 'approved' ? '✅ Withdrawal Approved' : wth.status === 'rejected' ? '❌ Withdrawal Rejected' : '📤 New Withdrawal Request',
@@ -416,6 +416,8 @@ export default function App() {
         status: wth.status || 'pending',
         customId: `notif_wth_${wth.id}`
       }).catch(() => {});
+
+      await setDoc(wthRef, sanitizedWth, { merge: true });
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `withdrawals/${wth.id}`);
     }

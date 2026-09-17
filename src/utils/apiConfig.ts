@@ -14,8 +14,11 @@ export const CLOUD_RUN_BACKEND_URL = "https://ais-dev-3i56sy2awc7eay4qfym7sg-376
 export async function safeApiPost(endpoint: string, body: any): Promise<{ success: boolean; data?: any; error?: string }> {
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   
-  // 1. Try relative endpoint first (works in Cloud Run container & Vercel serverless)
+  // 1. Try relative endpoint first with an aggressive 2.5s timeout for fast failover
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2500);
+
     const res = await fetch(cleanEndpoint, {
       method: 'POST',
       headers: {
@@ -23,7 +26,9 @@ export async function safeApiPost(endpoint: string, body: any): Promise<{ succes
         'Accept': 'application/json',
       },
       body: JSON.stringify(body),
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
 
     if (res.ok) {
       const data = await res.json().catch(() => ({ success: true }));
@@ -32,10 +37,10 @@ export async function safeApiPost(endpoint: string, body: any): Promise<{ succes
       }
     }
   } catch (err: any) {
-    console.warn(`Local endpoint ${cleanEndpoint} attempt failed:`, err?.message);
+    console.warn(`Local endpoint ${cleanEndpoint} attempt failed or timed out:`, err?.message);
   }
 
-  // 2. Fallback to live Cloud Run Backend
+  // 2. Fallback immediately to live Cloud Run Backend
   try {
     const targetUrl = `${CLOUD_RUN_BACKEND_URL}${cleanEndpoint}`;
     const fallbackRes = await fetch(targetUrl, {

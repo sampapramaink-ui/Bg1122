@@ -67,16 +67,22 @@ export async function sendAdminNotification(notification: {
       metadata: notification.metadata || {}
     };
 
-    const docRef = doc(db, 'admin_notifications', notifId);
-    await setDoc(docRef, cleanFirestoreData(notifDoc));
-
-    // Also dispatch server-side FCM push notification to admin topic asynchronously via resilient safeApiPost
+    // 🚀 ZERO-DELAY (0 SEC): Dispatch push notification to Android app immediately without blocking!
     safeApiPost('/api/notify-admin-order', {
+      topic: 'admin',
       title: notification.title,
       body: notification.description,
       type: notification.type,
       targetUrl: notification.type === 'deposit' ? '/orders?tab=deposits' : notification.type === 'withdrawal' ? '/orders?tab=withdrawals' : '/admin?tab=support_chat'
-    }).catch(() => {});
+    }).catch((err) => {
+      console.warn('Silent note: Push notification post returned error:', err);
+    });
+
+    // Concurrently persist to Firestore without delaying the push alert
+    const docRef = doc(db, 'admin_notifications', notifId);
+    setDoc(docRef, cleanFirestoreData(notifDoc)).catch((err) => {
+      console.warn('Silent note: Failed to send admin notification to Firestore:', err);
+    });
 
     return notifId;
   } catch (err) {

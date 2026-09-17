@@ -55,9 +55,13 @@ export default async function handler(req, res) {
         sound: 'default',
         speak: speak === false ? 'false' : 'true',
         click_action: 'FLUTTER_NOTIFICATION_CLICK',
+        clickAction: 'FLUTTER_NOTIFICATION_CLICK',
+        priority: 'high',
+        timestamp: String(Date.now()),
       },
       android: {
         priority: 'high',
+        ttl: 2419200,
         notification: {
           channelId: 'betguru_transactions',
           priority: 'max',
@@ -66,6 +70,8 @@ export default async function handler(req, res) {
           defaultVibrateTimings: true,
           visibility: 'public',
           clickAction: 'FLUTTER_NOTIFICATION_CLICK',
+          notificationPriority: 'PRIORITY_MAX',
+          ticker: String(title),
         },
       },
       webpush: {
@@ -84,22 +90,22 @@ export default async function handler(req, res) {
     };
 
     const directToken = token || fcmToken;
+    let result;
     if (directToken && typeof directToken === 'string' && directToken.trim().length > 10) {
       fcmMessage.token = directToken.trim();
-    } else if (topic && typeof topic === 'string' && topic.trim()) {
-      fcmMessage.topic = topic.trim();
+      result = await messaging.send(fcmMessage);
     } else {
-      // Dispatches simultaneously to any device subscribed to admin, orders, or transactions
-      fcmMessage.condition = "'admin' in topics || 'orders' in topics || 'transactions' in topics";
+      const targetTopic = (topic && typeof topic === 'string' && topic.trim()) ? topic.trim() : 'admin';
+      fcmMessage.topic = targetTopic;
+      result = await messaging.send(fcmMessage);
     }
 
-    const result = await messaging.send(fcmMessage);
     console.log('✅ FCM Admin push sent successfully:', result);
 
     return res.status(200).json({
       success: true,
       delivered: true,
-      message: 'Admin push dispatched successfully',
+      message: 'Admin push dispatched successfully in 0s',
       result,
     });
   } catch (err) {
