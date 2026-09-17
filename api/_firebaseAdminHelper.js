@@ -34,7 +34,7 @@ export function getAdminApp() {
     return cachedApp;
   }
 
-  const projectId = process.env.FIREBASE_PROJECT_ID || activeProjectId;
+  const projectId = process.env.FIREBASE_PROJECT_ID || serviceAccountConfig.projectId || activeProjectId;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL || serviceAccountConfig.clientEmail;
   const privateKey = process.env.FIREBASE_PRIVATE_KEY || serviceAccountConfig.privateKey;
 

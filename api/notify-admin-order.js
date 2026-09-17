@@ -19,7 +19,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { title, body, message, targetUrl, type, speak } = req.body || {};
+    const { title, body, message, targetUrl, type, speak, token, fcmToken, topic } = req.body || {};
     const effectiveBody = body || message || '';
 
     if (!title || !effectiveBody) {
@@ -35,8 +35,10 @@ export default async function handler(req, res) {
       });
     }
 
+    const effectiveTargetUrl = targetUrl || '/orders';
+    const effectiveType = type || 'transaction';
+
     const fcmMessage = {
-      topic: 'admin',
       notification: {
         title: String(title),
         body: String(effectiveBody),
@@ -44,18 +46,26 @@ export default async function handler(req, res) {
       data: {
         title: String(title),
         body: String(effectiveBody),
-        target_url: String(targetUrl || '/orders'),
-        type: String(type || 'transaction'),
+        message: String(effectiveBody),
+        target_url: String(effectiveTargetUrl),
+        targetUrl: String(effectiveTargetUrl),
+        type: String(effectiveType),
+        channel_id: 'betguru_transactions',
+        channelId: 'betguru_transactions',
+        sound: 'default',
         speak: speak === false ? 'false' : 'true',
+        click_action: 'FLUTTER_NOTIFICATION_CLICK',
       },
       android: {
         priority: 'high',
         notification: {
           channelId: 'betguru_transactions',
           priority: 'max',
+          sound: 'default',
           defaultSound: true,
           defaultVibrateTimings: true,
           visibility: 'public',
+          clickAction: 'FLUTTER_NOTIFICATION_CLICK',
         },
       },
       webpush: {
@@ -73,13 +83,23 @@ export default async function handler(req, res) {
       },
     };
 
+    const directToken = token || fcmToken;
+    if (directToken && typeof directToken === 'string' && directToken.trim().length > 10) {
+      fcmMessage.token = directToken.trim();
+    } else if (topic && typeof topic === 'string' && topic.trim()) {
+      fcmMessage.topic = topic.trim();
+    } else {
+      // Dispatches simultaneously to any device subscribed to admin, orders, or transactions
+      fcmMessage.condition = "'admin' in topics || 'orders' in topics || 'transactions' in topics";
+    }
+
     const result = await messaging.send(fcmMessage);
     console.log('✅ FCM Admin push sent successfully:', result);
 
     return res.status(200).json({
       success: true,
       delivered: true,
-      message: 'Admin push dispatched to topic: admin',
+      message: 'Admin push dispatched successfully',
       result,
     });
   } catch (err) {

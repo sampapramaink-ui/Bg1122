@@ -4,7 +4,7 @@
  * across Google Cloud Run, Vercel, Android APK WebView, and standalone PWAs.
  */
 
-export const CLOUD_RUN_BACKEND_URL = "https://ais-dev-uollfxwaifo2qfeni3xeyg-73885866611.asia-southeast1.run.app";
+export const CLOUD_RUN_BACKEND_URL = "https://ais-dev-3i56sy2awc7eay4qfym7sg-376130601345.asia-southeast1.run.app";
 
 /**
  * Dispatches a POST request with automatic Cloud Run backend fallback.

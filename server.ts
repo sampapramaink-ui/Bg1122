@@ -586,7 +586,7 @@ async function startServer() {
   // 📌 ডিপোজিট বা নতুন অর্ডারের সময় অ্যাডমিন পুশ নোটিফিকেশন পাঠানোর রুট
   app.post("/api/notify-admin-order", async (req, res) => {
     try {
-      const { title, body, message, targetUrl, type } = req.body;
+      const { title, body, message, targetUrl, type, topic, token, fcmToken } = req.body;
       const effectiveBody = body || message || "";
 
       if (!title || !effectiveBody) {
@@ -602,8 +602,10 @@ async function startServer() {
         });
       }
 
-      const msgPayload = {
-        topic: 'admin', // ✅ সমস্ত BetGuru Admin ডিভাইসে যাবে
+      const effectiveTargetUrl = targetUrl || "/orders";
+      const effectiveType = type || 'transaction';
+
+      const msgPayload: any = {
         notification: {
           title: String(title),
           body: String(effectiveBody),
@@ -611,26 +613,43 @@ async function startServer() {
         data: {
           title: String(title),
           body: String(effectiveBody),
-          target_url: String(targetUrl || "/orders"),
-          type: String(type || 'transaction'),
-          speak: 'true', // বাংলা ভয়েস অ্যালার্ট চালু রাখবে
+          message: String(effectiveBody),
+          target_url: String(effectiveTargetUrl),
+          targetUrl: String(effectiveTargetUrl),
+          type: String(effectiveType),
+          channel_id: "betguru_transactions",
+          channelId: "betguru_transactions",
+          sound: "default",
+          speak: "true",
+          click_action: "FLUTTER_NOTIFICATION_CLICK",
         },
         android: {
-          priority: 'high' as const, // ⚡ স্ক্রিন অফ থাকলেও সঙ্গে সঙ্গে ওয়েক করবে
+          priority: 'high' as const,
           notification: {
             channelId: 'betguru_transactions',
             priority: 'max' as const,
+            sound: 'default',
             defaultSound: true,
             defaultVibrateTimings: true,
             visibility: 'public' as const,
+            clickAction: 'FLUTTER_NOTIFICATION_CLICK',
           },
         },
       };
 
+      const directToken = token || fcmToken;
+      if (directToken && typeof directToken === 'string' && directToken.trim().length > 10) {
+        msgPayload.token = directToken.trim();
+      } else if (topic && typeof topic === 'string' && topic.trim()) {
+        msgPayload.topic = topic.trim();
+      } else {
+        msgPayload.condition = "'admin' in topics || 'orders' in topics || 'transactions' in topics";
+      }
+
       const response = await messaging.send(msgPayload);
       return res.json({
         success: true,
-        message: "Admin push notification dispatched to topic: admin",
+        message: "Admin push notification dispatched successfully",
         response
       });
     } catch (err: any) {
