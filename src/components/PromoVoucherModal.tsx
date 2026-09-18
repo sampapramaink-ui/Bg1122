@@ -58,7 +58,6 @@ export const PromoVoucherModal: React.FC<PromoVoucherModalProps> = ({
           <PromoVoucherCard 
             data={promo} 
             showDownloadButton={true}
-            onDownloaded={onClose}
           />
         </div>
 

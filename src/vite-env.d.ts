@@ -26,6 +26,11 @@ export interface AndroidBridgeInterface {
   vibrate?: (durationMs?: number) => void;
   getAppVersion?: () => string;
   copyToClipboard?: (text: string) => void;
+  saveImage?: (base64Data: string, filename: string) => void;
+  downloadFile?: (base64DataOrUrl: string, filename: string) => void;
+  downloadBase64?: (base64Data: string, filename: string) => void;
+  shareText?: (text: string, title?: string) => void;
+  share?: (text: string, title?: string) => void;
 }
 
 declare global {

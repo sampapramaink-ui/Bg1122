@@ -10,6 +10,7 @@ import { soundFx } from '../utils/audio';
 import { sortChronologicalNewestFirst } from '../utils/supercar';
 import { VoucherGenerator } from './VoucherGenerator';
 import { PaginationBar } from './PaginationBar';
+import { downloadVoucherImageSafe } from '../utils/voucherShareDownloadHelper';
 
 // Strictly classify purely financial transactions
 export const isPureFinancialTx = (tx: WalletTransaction): boolean => {
@@ -335,29 +336,9 @@ export const WalletLedger: React.FC<WalletLedgerProps> = ({
     ctx.font = '500 10px monospace';
     ctx.fillText(`GENERATED ON ${new Date().toLocaleString('en-IN')} • OFFICIAL DIGITAL VOUCHER`, 300, 725);
 
-    // Trigger Download PNG or Web Share API
-    canvas.toBlob((blob) => {
-      if (!blob) return;
-      const file = new File([blob], `BETGURU_Voucher_${tx.id}.png`, { type: 'image/png' });
-
-      if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] }) && typeof navigator.share === 'function') {
-        navigator.share({
-          files: [file],
-          title: `BETGURU Transaction Voucher ${tx.id}`,
-          text: `Official transaction voucher slip from BETGURU!`
-        }).catch(() => {
-          const link = document.createElement('a');
-          link.download = `BETGURU_Voucher_${tx.id}.png`;
-          link.href = URL.createObjectURL(blob);
-          link.click();
-        });
-      } else {
-        const link = document.createElement('a');
-        link.download = `BETGURU_Voucher_${tx.id}.png`;
-        link.href = URL.createObjectURL(blob);
-        link.click();
-      }
-    });
+    // Safe Download & Export
+    const filename = `BETGURU_Voucher_${tx.id}.png`;
+    downloadVoucherImageSafe(canvas, filename);
   };
 
   // Helper for Transaction Type Display

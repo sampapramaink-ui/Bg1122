@@ -18,6 +18,7 @@ import { User, PromoCode, PromoTargetWallet } from '../types';
 import { redeemInstantPromoCode, validatePromoCode } from '../utils/promoCodeService';
 import { soundFx } from '../utils/audio';
 import { triggerConfetti } from '../utils/confetti';
+import { PromoVoucherModal } from './PromoVoucherModal';
 
 interface PromoCodeModalProps {
   isOpen: boolean;
@@ -46,6 +47,7 @@ export const PromoCodeModal: React.FC<PromoCodeModalProps> = ({
     targetWallet?: PromoTargetWallet;
     promo: PromoCode;
   } | null>(null);
+  const [viewingVoucher, setViewingVoucher] = useState<PromoCode | null>(null);
 
   if (!isOpen) return null;
 
@@ -216,6 +218,18 @@ export const PromoCodeModal: React.FC<PromoCodeModalProps> = ({
                       <span className="font-bold text-amber-300">{successData.promo.title}</span>
                     </div>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      soundFx.playClick();
+                      setViewingVoucher(successData.promo);
+                    }}
+                    className="w-full py-2.5 rounded-2xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer active:scale-95 shadow"
+                  >
+                    <Sparkles className="w-4 h-4 text-amber-400" />
+                    <span>🎟️ 4K ভাউচার কার্ড ডাউনলোড ও শেয়ার</span>
+                  </button>
                 </>
               ) : (
                 <>
@@ -331,6 +345,13 @@ export const PromoCodeModal: React.FC<PromoCodeModalProps> = ({
         )}
 
       </div>
+
+      {/* Official 4K Promo Voucher Card Modal */}
+      <PromoVoucherModal
+        isOpen={!!viewingVoucher}
+        onClose={() => setViewingVoucher(null)}
+        promo={viewingVoucher}
+      />
     </div>
   );
 };

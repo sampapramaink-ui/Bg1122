@@ -2,6 +2,14 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Download, Share2, X, CheckCircle2, ShieldCheck, Sparkles, Copy, Check, MessageSquare, Maximize2, Minimize2, Target, Trophy, XCircle, Tag } from 'lucide-react';
 import { WalletTransaction, BetBreakdownItem } from '../types';
 import { soundFx } from '../utils/audio';
+import { 
+  downloadVoucherImageSafe, 
+  tryNativeShareVoucher, 
+  copyToClipboardSafe, 
+  ShareVoucherParams 
+} from '../utils/voucherShareDownloadHelper';
+import { VoucherShareModal } from './VoucherShareModal';
+import { AndroidImageSaveModal } from './AndroidImageSaveModal';
 
 interface VoucherGeneratorProps {
   transaction: WalletTransaction | any;
@@ -15,6 +23,9 @@ export const VoucherGenerator: React.FC<VoucherGeneratorProps> = ({ transaction,
   const [copiedUtr, setCopiedUtr] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
   const [dataUrl, setDataUrl] = useState<string>('');
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isAndroidSaveOpen, setIsAndroidSaveOpen] = useState(false);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   const isCredit = transaction.amount ? transaction.amount >= 0 : (transaction.status === 'win' || transaction.type === 'deposit');
   const displayAmount = transaction.amount !== undefined 
@@ -288,114 +299,73 @@ export const VoucherGenerator: React.FC<VoucherGeneratorProps> = ({ transaction,
     }
   }, [transaction]);
 
-  const handleDownload = () => {
-    soundFx.playCoin();
+  const handleDownload = async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const image = canvas.toDataURL('image/png');
-    const link = document.createElement('a');
-    link.href = image;
-    link.download = `BETGURU-Voucher-${txId}.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const filename = `BETGURU-Voucher-${txId}.png`;
+    const res = await downloadVoucherImageSafe(canvas, filename, (msg) => {
+      setToastMsg(msg);
+      setTimeout(() => setToastMsg(null), 3000);
+    });
+
+    if (res.dataUrl) {
+      setDataUrl(res.dataUrl);
+    }
+
+    if (res.requiresManualSave && res.dataUrl) {
+      setIsAndroidSaveOpen(true);
+    } else {
+      setToastMsg('ভাউচার ডাউনলোড সম্পন্ন হয়েছে!');
+      setTimeout(() => setToastMsg(null), 3000);
+    }
   };
 
   const handleShare = async () => {
     soundFx.playClick();
     setIsSharing(true);
 
-    try {
-      let file: File | null = null;
-      if (dataUrl) {
-        try {
-          const arr = dataUrl.split(',');
-          const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/png';
-          const bstr = atob(arr[1]);
-          let n = bstr.length;
-          const u8arr = new Uint8Array(n);
-          while (n--) {
-            u8arr[n] = bstr.charCodeAt(n);
-          }
-          const blob = new Blob([u8arr], { type: mime });
-          file = new File([blob], `BETGURU-Voucher-${txId}.png`, { type: mime });
-        } catch (convErr) {
-          console.warn('DataURL to File conversion error:', convErr);
-        }
-      }
+    const shareParams: ShareVoucherParams = {
+      code: txId,
+      amountStr: `₹${displayAmount}`,
+      title: titleText,
+      type: transaction.type ? `ট্রানজেকশন (${transaction.type})` : 'অফিসিয়াল ট্রানজেকশন স্লিপ',
+      dataUrl: dataUrl || (canvasRef.current ? canvasRef.current.toDataURL('image/png') : null),
+      activations: `স্ট্যাটাস: ${statusText} • UTR: ${utrNumber}`
+    };
 
-      if (file && typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
-        try {
-          await navigator.share({
-            title: 'BETGURU Transaction Slip',
-            text: `BETGURU Official Voucher - ${titleText} (₹${displayAmount})`,
-            files: [file],
-          });
-          setIsSharing(false);
-          return;
-        } catch (shareErr: any) {
-          if (shareErr?.name === 'AbortError') {
-            setIsSharing(false);
-            return;
-          }
-          console.warn('File share failed, attempting text share:', shareErr);
-        }
-      }
-
-      if (typeof navigator.share === 'function') {
-        try {
-          await navigator.share({
-            title: 'BETGURU Transaction Slip',
-            text: `BETGURU Voucher Slip:\n${titleText}\nAmount: ₹${displayAmount}\nTx ID: ${txId}`,
-            url: window.location.href,
-          });
-          setIsSharing(false);
-          return;
-        } catch (shareTextErr: any) {
-          if (shareTextErr?.name === 'AbortError') {
-            setIsSharing(false);
-            return;
-          }
-          console.warn('Text share failed, falling back to download:', shareTextErr);
-        }
-      }
-
-      handleDownload();
-      try {
-        if (navigator.clipboard?.writeText) {
-          await navigator.clipboard.writeText(`BETGURU Voucher: ${txId} - ₹${displayAmount}`);
-        }
-      } catch (_) {}
-    } catch (err: any) {
-      console.warn('Share error fallback:', err);
-      handleDownload();
-    } finally {
-      setIsSharing(false);
+    const shared = await tryNativeShareVoucher(shareParams);
+    setIsSharing(false);
+    if (!shared) {
+      setIsShareModalOpen(true);
     }
   };
 
-  const copyTxId = () => {
-    try {
-      if (navigator.clipboard?.writeText) {
-        navigator.clipboard.writeText(txId).catch(() => {});
-      }
-    } catch (_) {}
-    setCopied(true);
+  const copyTxId = async () => {
     soundFx.playClick();
-    setTimeout(() => setCopied(false), 2000);
+    const ok = await copyToClipboardSafe(txId);
+    if (ok) {
+      setCopied(true);
+      setToastMsg(`ট্রানজেকশন আইডি কপি হয়েছে: ${txId}`);
+      setTimeout(() => {
+        setCopied(false);
+        setToastMsg(null);
+      }, 2000);
+    }
   };
 
-  const copyUtr = () => {
+  const copyUtr = async () => {
     const textToCopy = transaction.utr || transaction.utrNumber || txId;
-    try {
-      if (navigator.clipboard?.writeText) {
-        navigator.clipboard.writeText(textToCopy).catch(() => {});
-      }
-    } catch (_) {}
-    setCopiedUtr(true);
     soundFx.playClick();
-    setTimeout(() => setCopiedUtr(false), 2000);
+    const ok = await copyToClipboardSafe(textToCopy);
+    if (ok) {
+      setCopiedUtr(true);
+      setToastMsg(`UTR/রেফারেন্স কপি হয়েছে: ${textToCopy}`);
+      setTimeout(() => {
+        setCopiedUtr(false);
+        setToastMsg(null);
+      }, 2000);
+    }
   };
 
   const handleSupportShare = () => {
@@ -661,6 +631,37 @@ export const VoucherGenerator: React.FC<VoucherGeneratorProps> = ({ transaction,
         </div>
 
       </div>
+
+      {/* Modals for Reliable Android Share and Save */}
+      <VoucherShareModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        params={{
+          code: txId,
+          amountStr: `₹${displayAmount}`,
+          title: titleText,
+          type: transaction.type ? `ট্রানজেকশন (${transaction.type})` : 'অফিসিয়াল ট্রানজেকশন স্লিপ',
+          dataUrl: dataUrl || (canvasRef.current ? canvasRef.current.toDataURL('image/png') : null),
+          activations: `স্ট্যাটাস: ${statusText} • UTR: ${utrNumber}`
+        }}
+        onOpenDownloadLightbox={() => setIsAndroidSaveOpen(true)}
+      />
+
+      <AndroidImageSaveModal
+        isOpen={isAndroidSaveOpen}
+        onClose={() => setIsAndroidSaveOpen(false)}
+        dataUrl={dataUrl || (canvasRef.current ? canvasRef.current.toDataURL('image/png') : null)}
+        filename={`BETGURU-Voucher-${txId}.png`}
+        onShare={() => setIsShareModalOpen(true)}
+      />
+
+      {/* Floating Status Notification */}
+      {toastMsg && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 border border-amber-500/50 text-white px-4 py-2.5 rounded-2xl text-xs font-bold shadow-2xl flex items-center gap-2 animate-in fade-in slide-in-from-bottom duration-200">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>{toastMsg}</span>
+        </div>
+      )}
 
     </div>
   );

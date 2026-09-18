@@ -1,7 +1,15 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Download, Copy, Check, Share2, Sparkles, ShieldCheck } from 'lucide-react';
+import { Download, Copy, Check, Share2, Sparkles, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { PromoCode, PromoCodeType, PromoTargetWallet } from '../types';
 import { soundFx } from '../utils/audio';
+import { 
+  downloadVoucherImageSafe, 
+  tryNativeShareVoucher, 
+  copyToClipboardSafe, 
+  ShareVoucherParams 
+} from '../utils/voucherShareDownloadHelper';
+import { VoucherShareModal } from './VoucherShareModal';
+import { AndroidImageSaveModal } from './AndroidImageSaveModal';
 
 export interface PromoVoucherData {
   code: string;
@@ -433,11 +441,19 @@ export const PromoVoucherCard: React.FC<PromoVoucherCardProps> = ({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isAndroidSaveOpen, setIsAndroidSaveOpen] = useState(false);
+  const [currentDataUrl, setCurrentDataUrl] = useState<string | null>(null);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   // Redraw canvas whenever promo data changes
   useEffect(() => {
     if (canvasRef.current) {
       drawPromoVoucherToCanvas(canvasRef.current, data);
+      try {
+        const url = canvasRef.current.toDataURL('image/png', 1.0);
+        setCurrentDataUrl(url);
+      } catch (_) {}
     }
   }, [
     data.code,
@@ -451,78 +467,87 @@ export const PromoVoucherCard: React.FC<PromoVoucherCardProps> = ({
     data.maxTotalUses
   ]);
 
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(null), 3000);
+  };
+
   const handleDownloadPNG = async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     setDownloading(true);
-    soundFx.playWin();
 
     try {
       // Ensure redrawn cleanly at full 2400x1350 resolution
       drawPromoVoucherToCanvas(canvas, data);
 
-      canvas.toBlob((blob) => {
-        if (!blob) {
-          setDownloading(false);
-          return;
-        }
+      const cleanCode = (data.code || 'PROMO').replace(/[^a-zA-Z0-9_-]/g, '').toUpperCase();
+      const filename = `BETGURU-VOUCHER-${cleanCode}.png`;
 
-        const cleanCode = (data.code || 'PROMO').replace(/[^a-zA-Z0-9_-]/g, '').toUpperCase();
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `BETGURU-VOUCHER-${cleanCode}.png`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+      const res = await downloadVoucherImageSafe(canvas, filename, (msg) => {
+        showToast(msg);
+      });
 
-        setDownloading(false);
-        if (onDownloaded) onDownloaded();
-      }, 'image/png', 1.0);
+      if (res.dataUrl) {
+        setCurrentDataUrl(res.dataUrl);
+      }
+
+      // If on Android or WebView, also show the user-friendly Save / Long-press modal
+      if (res.requiresManualSave && res.dataUrl) {
+        setIsAndroidSaveOpen(true);
+      } else {
+        showToast('ভাউচার ডাউনলোড সম্পন্ন হয়েছে!');
+      }
+
+      setDownloading(false);
+      if (onDownloaded && !res.requiresManualSave) {
+        onDownloaded();
+      }
     } catch (err) {
       console.error('Failed to download voucher PNG:', err);
+      showToast('ডাউনলোড সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।');
       setDownloading(false);
     }
   };
 
   const handleCopyCode = async () => {
     if (!data.code) return;
-    try {
-      soundFx.playClick();
-      await navigator.clipboard.writeText(data.code.toUpperCase());
+    soundFx.playClick();
+    const ok = await copyToClipboardSafe(data.code.toUpperCase());
+    if (ok) {
       setCopied(true);
+      showToast(`ভাউচার কোড কপি হয়েছে: ${data.code.toUpperCase()}`);
       setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // fallback
     }
   };
 
   const handleShareImage = async () => {
+    soundFx.playClick();
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    let dataUrl = currentDataUrl;
+    if (canvas) {
+      try {
+        drawPromoVoucherToCanvas(canvas, data);
+        dataUrl = canvas.toDataURL('image/png', 1.0);
+        setCurrentDataUrl(dataUrl);
+      } catch (_) {}
+    }
 
-    try {
-      soundFx.playClick();
-      canvas.toBlob(async (blob) => {
-        if (!blob) return;
-        const cleanCode = (data.code || 'PROMO').toUpperCase();
-        const file = new File([blob], `BETGURU-VOUCHER-${cleanCode}.png`, { type: 'image/png' });
+    const shareParams: ShareVoucherParams = {
+      code: rawCode,
+      amountStr,
+      title: data.title || (isDeposit ? 'ডিপোজিট বোনাস ভাউচার' : 'ক্যাশ রিওয়ার্ড ভাউচার'),
+      type: tagText,
+      dataUrl,
+      activations: activationsStr
+    };
 
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          await navigator.share({
-            title: `BET GURU Promo Voucher - ${cleanCode}`,
-            text: `BET GURU Exclusive Promo Code: ${cleanCode}! Claim instantly on the portal.`,
-            files: [file]
-          });
-        } else {
-          // Fallback to clipboard copy of code
-          handleCopyCode();
-        }
-      }, 'image/png', 1.0);
-    } catch {
-      handleCopyCode();
+    // Try native sharing without async delay to preserve browser user activation
+    const shared = await tryNativeShareVoucher(shareParams);
+    if (!shared) {
+      // If native sharing is unsupported or unavailable, open our specialized share modal
+      setIsShareModalOpen(true);
     }
   };
 
@@ -700,6 +725,36 @@ export const PromoVoucherCard: React.FC<PromoVoucherCardProps> = ({
               <span>{downloading ? 'ডাউনলোড হচ্ছে...' : 'PNG ডাউনলোড (4K HD)'}</span>
             </button>
           </div>
+        </div>
+      )}
+      {/* Modals for Reliable Android Share and Save */}
+      <VoucherShareModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        params={{
+          code: rawCode,
+          amountStr,
+          title: data.title || (isDeposit ? 'ডিপোজিট বোনাস ভাউচার' : 'ক্যাশ রিওয়ার্ড ভাউচার'),
+          type: tagText,
+          dataUrl: currentDataUrl,
+          activations: activationsStr
+        }}
+        onOpenDownloadLightbox={() => setIsAndroidSaveOpen(true)}
+      />
+
+      <AndroidImageSaveModal
+        isOpen={isAndroidSaveOpen}
+        onClose={() => setIsAndroidSaveOpen(false)}
+        dataUrl={currentDataUrl}
+        filename={`BETGURU-VOUCHER-${rawCode}.png`}
+        onShare={() => setIsShareModalOpen(true)}
+      />
+
+      {/* Floating Status Notification */}
+      {toastMsg && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 border border-amber-500/50 text-white px-4 py-2.5 rounded-2xl text-xs font-bold shadow-2xl flex items-center gap-2 animate-in fade-in slide-in-from-bottom duration-200">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>{toastMsg}</span>
         </div>
       )}
     </div>
