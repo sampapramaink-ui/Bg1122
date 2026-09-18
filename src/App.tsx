@@ -31,6 +31,7 @@ import { PWANotificationModal } from './components/PWANotificationModal';
 import { GoogleMapOutletLocator } from './components/GoogleMapOutletLocator';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { AuthScreen } from './components/AuthScreen';
+import { PasscodeLockScreen } from './components/PasscodeLockScreen';
 import { LiveRoulette } from './components/LiveRoulette';
 import { AndarBaharGame } from './components/AndarBaharGame';
 import { AviatorCrashGame } from './components/AviatorCrashGame';
@@ -162,6 +163,23 @@ export default function App() {
   const [superCarBuyPageCar, setSuperCarBuyPageCar] = useState<SuperCarColor | null>(null);
   const [buyTicketDraw, setBuyTicketDraw] = useState<LotteryDraw | null>(null);
   const [isMuted, setIsMuted] = useState<boolean>(false);
+
+  // 4-Digit Passcode & Biometric Access Gate State
+  const [isPasscodeUnlocked, setIsPasscodeUnlocked] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      return sessionStorage.getItem('betguru_passcode_unlocked') === 'true';
+    } catch (_) {
+      return false;
+    }
+  });
+
+  const handleLockSession = () => {
+    try {
+      sessionStorage.removeItem('betguru_passcode_unlocked');
+    } catch (_) {}
+    setIsPasscodeUnlocked(false);
+  };
 
   const isAnyLiveGameOpen = isDragonTigerOpen || isCrashGameOpen || isLiveRouletteOpen || isAndarBaharOpen || isSuperCarOpen || !!superCarBuyPageCar;
 
@@ -1273,6 +1291,9 @@ export default function App() {
       localStorage.removeItem('betguru_tickets');
       localStorage.removeItem('betguru_transactions');
       localStorage.removeItem('betguru_notifications');
+      sessionStorage.removeItem('betguru_passcode_unlocked');
+      sessionStorage.removeItem('betguru_passcode_unlocked_uid');
+      setIsPasscodeUnlocked(false);
       try {
         await signOut(auth);
       } catch (err) {
@@ -3914,6 +3935,26 @@ export default function App() {
     );
   }
 
+  // 4-Digit Passcode & Biometric Authentication Gate
+  if (!isPasscodeUnlocked) {
+    return (
+      <PasscodeLockScreen
+        user={user}
+        onUnlock={() => {
+          setIsPasscodeUnlocked(true);
+          try {
+            sessionStorage.setItem('betguru_passcode_unlocked', 'true');
+            sessionStorage.setItem('betguru_passcode_unlocked_uid', user.id);
+          } catch (_) {}
+        }}
+        onLogout={handleLogout}
+        onUpdateUser={(updated) => {
+          setUser(updated);
+        }}
+      />
+    );
+  }
+
   // Dedicated Admin Dashboard View for Verified Admins
   if (isAdminMode && isVerifiedAdmin) {
     return (
@@ -4465,6 +4506,7 @@ export default function App() {
                   onUpdateUser={(updated) => setUser(updated)}
                   onOpenAdmin={isVerifiedAdmin ? () => setIsAdminMode(true) : undefined}
                   onOpenReferral={() => setIsReferralModalOpen(true)}
+                  onLockSession={handleLockSession}
                 />
               </motion.div>
             )}
@@ -4486,6 +4528,7 @@ export default function App() {
                   onOpenSupportChat={() => setIsSupportChatOpen(true)}
                   onOpenPwaNotifications={() => setIsPwaNotificationOpen(true)}
                   onLogout={handleLogout}
+                  onLockSession={handleLockSession}
                 />
               </motion.div>
             )}
@@ -4585,6 +4628,7 @@ export default function App() {
         onOpenMapLocator={() => setIsOutletMapOpen(true)}
         onOpenReferral={() => setIsReferralModalOpen(true)}
         onLogout={handleLogout}
+        onLockSession={handleLockSession}
         onBalanceUpdated={(newBal, newBonusBal) => {
           setUser((prev) => prev ? ({
             ...prev,

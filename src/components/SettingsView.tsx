@@ -1,17 +1,25 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Volume2, VolumeX, Bell, Vibrate, Flame, Type, ShieldCheck, 
   Check, ArrowLeft, Settings as SettingsIcon, MessageSquare, Headphones, 
   Key, Lock, ShieldAlert, Mail, Sparkles, RefreshCw, User as UserIcon,
   Building2, Wallet, ArrowUpRight, Edit3, Camera, MapPin, Phone, Calendar,
-  CreditCard, ChevronRight, Shield, Smartphone
+  CreditCard, ChevronRight, Shield, Smartphone, Fingerprint
 } from 'lucide-react';
+import { doc, setDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 import { User, UserSettings } from '../types';
 import { soundFx } from '../utils/audio';
 import { VIP_TIERS } from '../utils/vip';
 import { TransactionPinModal, PinModalMode } from './TransactionPinModal';
 import { UserEditProfileModal } from './UserEditProfileModal';
 import { isAndroidNativeApp, getStoredFcmToken } from '../utils/androidBridge';
+import { 
+  checkBiometricSupport, 
+  isUserBiometricEnrolled, 
+  registerBiometric, 
+  setBiometricPreference 
+} from '../utils/biometricAuth';
 
 export type SettingsTab = 'all' | 'security' | 'withdrawal' | 'profile' | 'audio' | 'display';
 
@@ -24,6 +32,7 @@ interface SettingsViewProps {
   onOpenSupportChat?: () => void;
   onOpenPwaNotifications?: () => void;
   onLogout?: () => void;
+  onLockSession?: () => void;
   initialTab?: SettingsTab;
 }
 
@@ -36,6 +45,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onOpenSupportChat,
   onOpenPwaNotifications,
   onLogout,
+  onLockSession,
   initialTab = 'all'
 }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
@@ -43,6 +53,69 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [pinModalOpen, setPinModalOpen] = useState<boolean>(false);
   const [pinModalMode, setPinModalMode] = useState<PinModalMode>('setup');
   const [editProfileModalOpen, setEditProfileModalOpen] = useState<boolean>(false);
+  const [biometricSupported, setBiometricSupported] = useState<boolean>(false);
+  const [biometricActive, setBiometricActive] = useState<boolean>(() => {
+    return isUserBiometricEnrolled(user.id) || Boolean(user.biometricEnabled || user.settings?.biometricEnabled);
+  });
+  const [isBiometricLoading, setIsBiometricLoading] = useState<boolean>(false);
+  const [biometricNotice, setBiometricNotice] = useState<string>('');
+
+  useEffect(() => {
+    checkBiometricSupport().then((supp) => {
+      setBiometricSupported(supp);
+    });
+  }, []);
+
+  const handleToggleBiometric = async () => {
+    soundFx.playClick();
+    setBiometricNotice('');
+    if (biometricActive) {
+      setBiometricPreference(currentUser.id, false);
+      setBiometricActive(false);
+      try {
+        const userRef = doc(db, 'users', currentUser.id);
+        await setDoc(userRef, {
+          biometricEnabled: false,
+          settings: { ...(currentUser.settings || {}), biometricEnabled: false }
+        }, { merge: true });
+        const updated: User = {
+          ...currentUser,
+          biometricEnabled: false,
+          settings: { ...(currentUser.settings || {}), biometricEnabled: false }
+        };
+        setCurrentUser(updated);
+        onUpdateUser?.(updated);
+        setBiometricNotice('বায়োমেট্রিক লগইন নিষ্ক্রিয় করা হয়েছে।');
+      } catch (_) {}
+    } else {
+      setIsBiometricLoading(true);
+      const res = await registerBiometric(currentUser.id, currentUser.name);
+      setIsBiometricLoading(false);
+      if (res.success) {
+        soundFx.playWin();
+        setBiometricPreference(currentUser.id, true);
+        setBiometricActive(true);
+        try {
+          const userRef = doc(db, 'users', currentUser.id);
+          await setDoc(userRef, {
+            biometricEnabled: true,
+            settings: { ...(currentUser.settings || {}), biometricEnabled: true }
+          }, { merge: true });
+          const updated: User = {
+            ...currentUser,
+            biometricEnabled: true,
+            settings: { ...(currentUser.settings || {}), biometricEnabled: true }
+          };
+          setCurrentUser(updated);
+          onUpdateUser?.(updated);
+          setBiometricNotice('🎉 বায়োমেট্রিক (Fingerprint / Face ID) সক্রিয় করা হয়েছে!');
+        } catch (_) {}
+      } else {
+        soundFx.playLoss();
+        setBiometricNotice(res.error || 'বায়োমেট্রিক সংযোগ ব্যর্থ হয়েছে।');
+      }
+    }
+  };
 
   React.useEffect(() => {
     setCurrentUser(user);
@@ -260,6 +333,89 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
               <span>সিকিউরিটি নোট: পিন ভুলে গেলে রেজিস্টার্ড ইমেইলে ({currentUser.email || 'আপনার ইমেইল'}) ৬-সংখ্যার ওটিপি কোড পাঠিয়ে তাৎক্ষণিক রিসেট করতে পারবেন।</span>
             </div>
+          </div>
+
+          {/* Biometric (Fingerprint / Face ID) Settings Card */}
+          <div className="pt-4 border-t border-slate-800 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`p-2.5 rounded-xl border ${biometricActive ? 'bg-amber-500/20 text-amber-400 border-amber-500/40' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>
+                  <Fingerprint className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                    <span>বায়োমেট্রিক লগইন (Fingerprint / Face ID)</span>
+                    {biometricActive && (
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 text-[10px] font-black">
+                        ACTIVE
+                      </span>
+                    )}
+                  </h4>
+                  <p className="text-xs text-slate-400">
+                    পাসকোড ছাড়াও আঙ্গুলের ছাপ বা ফেস রিকগনিশন দিয়ে সুরক্ষিত ও দ্রুত লগইন করুন।
+                  </p>
+                </div>
+              </div>
+
+              {biometricSupported ? (
+                <button
+                  onClick={handleToggleBiometric}
+                  disabled={isBiometricLoading}
+                  className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shadow-md ${
+                    biometricActive
+                      ? 'bg-emerald-500 hover:bg-emerald-600 text-slate-950'
+                      : 'bg-amber-500 hover:bg-amber-400 text-slate-950'
+                  } disabled:opacity-50`}
+                >
+                  {isBiometricLoading ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>প্রসেসিং...</span>
+                    </>
+                  ) : biometricActive ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      <span>সক্রিয় আছে (চালু)</span>
+                    </>
+                  ) : (
+                    <>
+                      <Fingerprint className="w-3.5 h-3.5" />
+                      <span>সক্রিয় করুন</span>
+                    </>
+                  )}
+                </button>
+              ) : (
+                <span className="text-[11px] font-bold text-slate-500 bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700">
+                  ডিভাইসে সেন্সর নেই
+                </span>
+              )}
+            </div>
+
+            {biometricNotice && (
+              <div className={`p-2.5 rounded-xl text-xs font-bold flex items-center gap-2 ${
+                biometricNotice.includes('ব্যর্থ') || biometricNotice.includes('ত্রুটি')
+                  ? 'bg-rose-500/20 border border-rose-500/40 text-rose-300'
+                  : 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-300'
+              }`}>
+                <span>{biometricNotice}</span>
+              </div>
+            )}
+
+            {/* Manual App Lock Button */}
+            {onLockSession && (
+              <div className="pt-2 flex justify-end">
+                <button
+                  onClick={() => {
+                    soundFx.playClick();
+                    onLockSession();
+                  }}
+                  className="px-4 py-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-amber-400 text-xs font-bold flex items-center gap-2 transition-all cursor-pointer"
+                >
+                  <Lock className="w-3.5 h-3.5 text-amber-400" />
+                  <span>লক স্ক্রিন পরীক্ষা করুন (Lock App Now)</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

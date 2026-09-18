@@ -225,16 +225,20 @@ export const TransactionPinModal: React.FC<TransactionPinModalProps> = ({
 
     setIsLoading(true);
     try {
-      // Save PIN to Firestore
+      // Save PIN and Passcode to Firestore
       const userRef = doc(db, 'users', user.id);
       await setDoc(userRef, {
         transactionPin: confirmed,
         hasTransactionPin: true,
+        passcode: confirmed,
+        hasPasscode: true,
         pinUpdatedAt: new Date().toISOString(),
         settings: {
           ...(user.settings || {}),
           transactionPin: confirmed,
           hasTransactionPin: true,
+          passcode: confirmed,
+          hasPasscode: true,
           pinUpdatedAt: new Date().toISOString()
         }
       }, { merge: true });

@@ -29,7 +29,8 @@ import {
   CheckCircle2,
   AlertCircle,
   Loader2,
-  ArrowRight
+  ArrowRight,
+  Lock
 } from 'lucide-react';
 import { User } from '../types';
 import { soundFx } from '../utils/audio';
@@ -55,6 +56,7 @@ interface UserSideMenuProps {
   onOpenMapLocator?: () => void;
   onOpenReferral?: () => void;
   onLogout?: () => void;
+  onLockSession?: () => void;
   activeTicketsCount?: number;
   unreadSupportCount?: number;
   onBalanceUpdated?: (newBal: number, newBonusBal?: number) => void;
@@ -78,6 +80,7 @@ export const UserSideMenu: React.FC<UserSideMenuProps> = ({
   onOpenMapLocator,
   onOpenReferral,
   onLogout,
+  onLockSession,
   activeTicketsCount = 0,
   unreadSupportCount = 0,
   onBalanceUpdated,
@@ -732,6 +735,17 @@ export const UserSideMenu: React.FC<UserSideMenuProps> = ({
               <Settings className="w-4 h-4" />
               <span>Settings</span>
             </button>
+
+            {onLockSession && (
+              <button
+                onClick={() => handleNavigation(onLockSession)}
+                className="p-2 text-amber-400/90 hover:text-amber-300 hover:bg-amber-950/40 rounded-xl transition flex items-center gap-1.5 text-xs font-bold cursor-pointer"
+                title="অ্যাপ লক করুন (Lock with Passcode)"
+              >
+                <Lock className="w-4 h-4" />
+                <span>Lock</span>
+              </button>
+            )}
 
             {onLogout && (
               <button

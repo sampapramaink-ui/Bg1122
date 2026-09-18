@@ -25,6 +25,10 @@ export interface UserSettings {
   transactionPin?: string;
   hasTransactionPin?: boolean;
   pinUpdatedAt?: string;
+  passcode?: string;
+  hasPasscode?: boolean;
+  biometricEnabled?: boolean;
+  biometricCredentialId?: string;
 }
 
 export interface LocationAnomalyInfo {
@@ -127,6 +131,10 @@ export interface User {
   totalReferralBonusEarned?: number;
   qualifiedReferralsCount?: number;
   role?: 'user' | 'admin';
+  passcode?: string;
+  hasPasscode?: boolean;
+  biometricEnabled?: boolean;
+  biometricCredentialId?: string;
   settings?: UserSettings;
   address?: string;
   age?: number | string;

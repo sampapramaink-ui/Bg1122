@@ -39,7 +39,8 @@ import {
   Building2,
   CreditCard,
   Flame,
-  Users
+  Users,
+  Fingerprint
 } from 'lucide-react';
 import { User, DepositRequest, WithdrawalRequest, PurchasedTicket, WalletTransaction, UserSettings } from '../types';
 import { soundFx } from '../utils/audio';
@@ -66,6 +67,7 @@ interface ProfileViewProps {
   onOpenSupportChat?: () => void;
   onOpenReferral?: () => void;
   onUpdateUser?: (updatedUser: User) => void;
+  onLockSession?: () => void;
 }
 
 export const ProfileView: React.FC<ProfileViewProps> = ({
@@ -79,7 +81,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   onOpenSettings,
   onOpenSupportChat,
   onOpenReferral,
-  onUpdateUser
+  onUpdateUser,
+  onLockSession
 }) => {
   const [currentUser, setCurrentUser] = useState<User>(user);
   const [copiedId, setCopiedId] = useState<boolean>(false);
@@ -413,6 +416,37 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         </div>
 
       </div>
+
+      {/* Quick Security & App Lock Button */}
+      {onLockSession && (
+        <div className="pt-1">
+          <button
+            onClick={() => {
+              soundFx.playClick();
+              onLockSession();
+            }}
+            className="w-full py-3.5 px-5 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900/90 to-amber-950/40 hover:to-amber-900/50 border border-slate-800 hover:border-amber-500/50 text-slate-300 hover:text-white flex items-center justify-between transition-all group cursor-pointer shadow-lg active:scale-[0.99]"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <Lock className="w-5 h-5" />
+              </div>
+              <div className="text-left">
+                <span className="block text-xs font-bold text-white group-hover:text-amber-300 transition-colors">
+                  অ্যাপটি এখনই লক করুন (Lock Screen)
+                </span>
+                <span className="text-[10px] text-slate-400 block">
+                  ৪-সংখ্যার পাসকোড ও বায়োমেট্রিক নিরাপত্তা পরীক্ষা করুন
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-amber-400 font-bold">
+              <Fingerprint className="w-4 h-4" />
+              <span>LOCK</span>
+            </div>
+          </button>
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* 2. 🔥 ULTRA HIGH-DEFINITION FIERY ANIMATED LOGOUT BUTTON                 */}
