@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   User as UserIcon, 
   Wallet, 
@@ -103,6 +103,27 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     soundFx.playClick();
     setPinModalMode(mode);
     setPinModalOpen(true);
+  };
+
+  const profileAdminTapCountRef = useRef(0);
+  const lastProfileAdminTapTimeRef = useRef(0);
+
+  const handleProfileSecretTap = () => {
+    const now = Date.now();
+    if (now - lastProfileAdminTapTimeRef.current < 800) {
+      profileAdminTapCountRef.current += 1;
+    } else {
+      profileAdminTapCountRef.current = 1;
+    }
+    lastProfileAdminTapTimeRef.current = now;
+
+    if (profileAdminTapCountRef.current >= 5) {
+      profileAdminTapCountRef.current = 0;
+      if ((currentUser.role === 'admin' || checkIsAdminEmail(currentUser.email)) && onOpenAdmin) {
+        soundFx.playClick();
+        onOpenAdmin();
+      }
+    }
   };
 
   const [settings, setSettings] = useState<UserSettings>({
@@ -220,13 +241,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               <div className="flex items-center justify-center sm:justify-start gap-2 flex-wrap">
                 <h2 className="text-xl sm:text-2xl font-black text-white font-mono tracking-tight">{currentUser.name}</h2>
 
-                {isAdminUser && (
-                  <span className="bg-rose-500/20 text-rose-400 text-[10px] font-black px-2.5 py-1 rounded-full border border-rose-500/40 flex items-center gap-1 font-mono uppercase">
-                    <Shield className="w-3 h-3" />
-                    <span>ADMIN</span>
-                  </span>
-                )}
-
                 <span className="bg-emerald-500/20 text-emerald-300 text-[10px] font-black px-2.5 py-0.5 rounded-full border border-emerald-500/40 flex items-center gap-1 font-mono uppercase">
                   <ShieldCheck className="w-3 h-3" />
                   <span>VERIFIED</span>
@@ -234,7 +248,13 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               </div>
 
               <div className="flex items-center justify-center sm:justify-start gap-2 text-xs font-mono">
-                <span className="text-slate-400">Account ID: <strong className="text-amber-400 font-bold tracking-wider">#{userShortCode}</strong></span>
+                <span 
+                  onClick={handleProfileSecretTap}
+                  className="text-slate-400 cursor-default select-none"
+                  title="Player Account ID"
+                >
+                  Account ID: <strong className="text-amber-400 font-bold tracking-wider">#{userShortCode}</strong>
+                </span>
                 <button
                   onClick={handleCopyId}
                   className="p-1 text-amber-400 hover:text-amber-300 font-bold text-[11px] flex items-center gap-1 cursor-pointer"
@@ -252,21 +272,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
               {/* Settings Trigger */}
               <div className="pt-2 flex flex-wrap items-center justify-center sm:justify-start gap-2">
-                {(currentUser.role === 'admin' || checkIsAdminEmail(currentUser.email)) && onOpenAdmin && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      soundFx.playClick();
-                      onOpenAdmin();
-                    }}
-                    className="px-3.5 py-1.5 bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 text-slate-950 font-black text-xs font-mono rounded-xl shadow-lg shadow-amber-500/20 flex items-center gap-1.5 cursor-pointer transition-all hover:scale-105 active:scale-95 animate-pulse"
-                    title="Open Admin Control Panel (অ্যাডমিন কন্ট্রোল প্যানেল)"
-                  >
-                    <ShieldCheck className="w-4 h-4 stroke-[2.5]" />
-                    <span>অ্যাডমিন প্যানেল (ADMIN HQ)</span>
-                  </button>
-                )}
-
                 {onOpenSettings && (
                   <button
                     type="button"

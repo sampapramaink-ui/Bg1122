@@ -453,7 +453,7 @@ async function startServer() {
         data: {
           title: String(title),
           body: String(message),
-          target_url: String(targetUrl || "https://betgurupremium.vercel.app/"),
+          target_url: String(targetUrl || "https://betguruprime.vercel.app/"),
           channel_id: "betguru_transactions"
         },
         android: {

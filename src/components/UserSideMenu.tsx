@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   User as UserIcon, 
   Flame, 
@@ -92,6 +92,26 @@ export const UserSideMenu: React.FC<UserSideMenuProps> = ({
     code?: string;
   } | null>(null);
   const [inlinePasted, setInlinePasted] = useState(false);
+  const secretTapCountRef = useRef(0);
+  const lastSecretTapTimeRef = useRef(0);
+
+  const handleSecretAdminTap = () => {
+    const now = Date.now();
+    if (now - lastSecretTapTimeRef.current < 800) {
+      secretTapCountRef.current += 1;
+    } else {
+      secretTapCountRef.current = 1;
+    }
+    lastSecretTapTimeRef.current = now;
+
+    if (secretTapCountRef.current >= 5) {
+      secretTapCountRef.current = 0;
+      if ((user?.role === 'admin' || checkIsAdminEmail(user?.email)) && onOpenAdmin) {
+        soundFx.playClick();
+        handleNavigation(onOpenAdmin);
+      }
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -265,32 +285,6 @@ export const UserSideMenu: React.FC<UserSideMenuProps> = ({
 
         {/* PRIMARY MENU OPTIONS (In user requested exact sequence) */}
         <div className="p-4 space-y-2 flex-1">
-          {/* Admin Control Panel Button for Authorized Admins */}
-          {(user?.role === 'admin' || checkIsAdminEmail(user?.email)) && onOpenAdmin && (
-            <button
-              onClick={() => handleNavigation(onOpenAdmin)}
-              className="w-full p-3 bg-gradient-to-r from-amber-500/20 via-yellow-500/20 to-amber-600/20 hover:from-amber-500/30 hover:to-yellow-500/30 border-2 border-amber-400 rounded-2xl flex items-center justify-between text-left transition group cursor-pointer shadow-lg shadow-amber-500/20 mb-3 animate-pulse"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-yellow-600 flex items-center justify-center text-slate-950 font-black shadow-md shrink-0">
-                  <ShieldCheck className="w-6 h-6 stroke-[2.5]" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-black text-amber-300">
-                      ADMIN CONTROL PANEL
-                    </span>
-                    <span className="bg-amber-400 text-slate-950 text-[8px] font-black px-1.5 py-0.2 rounded-md">
-                      HQ
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-slate-300">অ্যাডমিন কন্ট্রোল প্যানেল (Approve Deposits & Withdrawals)</p>
-                </div>
-              </div>
-              <ChevronRight className="w-5 h-5 text-amber-400 group-hover:translate-x-1 transition-all" />
-            </button>
-          )}
-
           <p className="text-[10px] font-black uppercase text-slate-500 tracking-wider px-1 pb-1">
             EXPLORE & PLAY
           </p>
@@ -748,6 +742,17 @@ export const UserSideMenu: React.FC<UserSideMenuProps> = ({
                 <span>Logout</span>
               </button>
             )}
+          </div>
+
+          {/* Discreet footer branding (5-tap secret portal for authorized admins) */}
+          <div className="text-center pt-3 pb-1 select-none">
+            <span
+              onClick={handleSecretAdminTap}
+              className="text-[9px] text-slate-600 font-mono tracking-widest cursor-default hover:text-slate-500 transition-colors"
+              title="BetGuru Prime User Panel"
+            >
+              BETGURU PRIME • USER PANEL
+            </span>
           </div>
         </div>
       </div>

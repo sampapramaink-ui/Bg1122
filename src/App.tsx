@@ -243,6 +243,46 @@ export default function App() {
     (user && (user.role === 'admin' || checkIsAdminEmail(user.email)))
   );
 
+  // Discreet URL query param (?admin=1 or #admin) and keyboard shortcut (Ctrl+Shift+A) for admin access in user panel mode
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const checkAdminTrigger = () => {
+      try {
+        const searchParams = new URLSearchParams(window.location.search);
+        const hash = window.location.hash;
+        if (
+          searchParams.get('admin') === '1' ||
+          searchParams.get('admin') === 'true' ||
+          searchParams.get('mode') === 'admin' ||
+          hash === '#admin'
+        ) {
+          if (isVerifiedAdmin) {
+            setIsAdminMode(true);
+          }
+        }
+      } catch (_) {}
+    };
+
+    checkAdminTrigger();
+    window.addEventListener('hashchange', checkAdminTrigger);
+
+    const handleAdminKeyboardShortcut = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
+        if (isVerifiedAdmin) {
+          e.preventDefault();
+          setIsAdminMode(prev => !prev);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleAdminKeyboardShortcut);
+
+    return () => {
+      window.removeEventListener('hashchange', checkAdminTrigger);
+      window.removeEventListener('keydown', handleAdminKeyboardShortcut);
+    };
+  }, [isVerifiedAdmin]);
+
   // Firestore Persistence Helpers (Strict Single User Document Architecture)
   const persistUserBalance = async (userId: string, newBalance: number, newBonusBalance?: number, _userEmail?: string) => {
     try {
@@ -433,9 +473,7 @@ export default function App() {
         userName: uName,
         createdAt: ticket.createdAt || new Date().toISOString()
       });
-      await setDoc(ticketRef, sanitizedTicket, { merge: true });
-
-      // Instantly dispatch persistent real-time admin alert to Firestore
+      // ⚡ INSTANT 0-SEC ADMIN NOTIFICATION: Dispatches push immediately!
       const isSuperCar = ticket.category === 'Three Super Car Draw';
       sendAdminNotification({
         type: 'ticket',
@@ -447,6 +485,8 @@ export default function App() {
         status: ticket.status || 'active',
         customId: `notif_ticket_${ticket.id}`
       }).catch(() => {});
+
+      await setDoc(ticketRef, sanitizedTicket, { merge: true });
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `tickets/${ticket.id}`);
     }

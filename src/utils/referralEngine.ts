@@ -32,11 +32,11 @@ export const getDynamicReferralLink = (referralCode: string): string => {
     origin = window.location.origin;
     if (!origin || origin === 'null') {
       const proto = window.location.protocol || 'https:';
-      origin = `${proto}//${window.location.host || 'betgurupremium.vercel.app'}`;
+      origin = `${proto}//${window.location.host || 'betguruprime.vercel.app'}`;
     }
   }
   if (!origin || origin === 'null') {
-    origin = 'https://betgurupremium.vercel.app';
+    origin = 'https://betguruprime.vercel.app';
   }
   // Trim trailing slashes
   origin = origin.replace(/\/+$/, '');

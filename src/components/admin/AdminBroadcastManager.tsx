@@ -410,7 +410,7 @@ export const AdminBroadcastManager: React.FC = () => {
                 ${personalMessage.trim()}
               </div>
               <div style="text-align: center;">
-                <a href="https://betgurupremium.vercel.app/" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: #000; padding: 12px 28px; border-radius: 9999px; text-decoration: none; font-weight: 800; font-size: 13px; display: inline-block;">OPEN BETGURU APP</a>
+                <a href="https://betguruprime.vercel.app/" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: #000; padding: 12px 28px; border-radius: 9999px; text-decoration: none; font-weight: 800; font-size: 13px; display: inline-block;">OPEN BETGURU APP</a>
               </div>
             </div>
           `,
@@ -527,7 +527,7 @@ export const AdminBroadcastManager: React.FC = () => {
             body: JSON.stringify({
               title: effectiveTitle,
               message: effectiveBody,
-              targetUrl: "https://betgurupremium.vercel.app/offers",
+              targetUrl: "https://betguruprime.vercel.app/offers",
               topic: targetSegment === 'VIP Players' ? 'vip' : 'all',
               tokens: userTokens.length > 0 ? userTokens : undefined
             })
@@ -571,7 +571,7 @@ export const AdminBroadcastManager: React.FC = () => {
                   ${effectiveBody}
                 </div>
                 <div style="text-align: center;">
-                  <a href="https://betgurupremium.vercel.app/" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: #000; padding: 12px 28px; border-radius: 9999px; text-decoration: none; font-weight: 800; font-size: 13px; display: inline-block;">OPEN BETGURU APP</a>
+                  <a href="https://betguruprime.vercel.app/" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: #000; padding: 12px 28px; border-radius: 9999px; text-decoration: none; font-weight: 800; font-size: 13px; display: inline-block;">OPEN BETGURU APP</a>
                 </div>
               </div>
             `,
