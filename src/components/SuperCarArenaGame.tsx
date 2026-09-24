@@ -24,7 +24,7 @@ import {
   getSlotFromTicket,
   getWinningCarForSlot
 } from '../utils/supercar';
-import { calculateSuperCarLiveBettingStats } from '../utils/supercarBettingEngine';
+import { calculateSuperCarLiveBettingStats, SuperCarLivePoolData } from '../utils/supercarBettingEngine';
 import { soundFx } from '../utils/audio';
 import { triggerConfetti } from '../utils/confetti';
 import { SuperCarResultsModal } from './SuperCarResultsModal';
@@ -37,6 +37,7 @@ interface SuperCarArenaGameProps {
   currentIssue: SuperCarDrawIssue | null;
   userTickets: PurchasedTicket[];
   pastDraws: SuperCarDrawIssue[];
+  livePools?: Record<string, SuperCarLivePoolData>;
   initialSelectedCar?: SuperCarColor;
   onConfirmBuyTicket: (
     carColor: SuperCarColor,
@@ -59,6 +60,7 @@ export const SuperCarArenaGame: React.FC<SuperCarArenaGameProps> = ({
   currentIssue,
   userTickets,
   pastDraws,
+  livePools,
   initialSelectedCar = 'red',
   onConfirmBuyTicket,
   onDrawResolved,
@@ -107,26 +109,16 @@ export const SuperCarArenaGame: React.FC<SuperCarArenaGameProps> = ({
   const potentialWin = Math.round(totalCost * activeMultiplier);
   const hasEnoughBalance = effectiveWalletBalance >= totalCost;
 
-  // Helper to determine the exact Admin Panel / House Edge calculated winning car
-  // STRICT RULE: Yellow car NEVER wins automatically! Only Red and Black.
+  // Helper to determine the authoritative winning car via getWinningCarForSlot
   const getAdminWinningCar = (): SuperCarColor => {
-    if (config?.resultMode === 'manual' && config?.manualWinner) {
-      return config.manualWinner;
-    }
-    const manualSlotWinner = config?.manualSlotWinners?.[scheduleInfo.issueId] || config?.manualSlotWinners?.[scheduleInfo.drawIndex];
-    if (manualSlotWinner) {
-      return manualSlotWinner;
-    }
-    if (currentIssue?.winningCar) {
-      return currentIssue.winningCar;
-    }
-    if (pastDraws && pastDraws.length > 0) {
-      const match = pastDraws.find((d) => d.issueId === scheduleInfo.issueId || d.id === scheduleInfo.issueId);
-      if (match?.winningCar) return match.winningCar;
-    }
-    // Calculate live based on tickets and House Edge:
-    const stats = calculateSuperCarLiveBettingStats(scheduleInfo.drawIndex, scheduleInfo.issueId, userTickets, config);
-    return stats.calculatedWinner;
+    return getWinningCarForSlot(
+      scheduleInfo.drawIndex,
+      scheduleInfo.issueId,
+      pastDraws,
+      config,
+      userTickets,
+      livePools?.[scheduleInfo.issueId]
+    );
   };
 
   // Synchronized 1000ms ticker for live countdown and draw resolution

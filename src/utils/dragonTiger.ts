@@ -700,6 +700,7 @@ export function getSyncedDragonTigerRoundOutcome(
   const realSuitedTieBets = (config?.realUserBets?.suitedTie ?? config?.liveBetsSuitedTie) || 0;
   const totalRealBets = realDragonBets + realTigerBets + realTieBets + realSuitedTieBets;
 
+  const isManualActive = Boolean((config as any)?.isManualOverride);
   const forcedTarget = (config?.manualForceWinner && config.manualForceWinner !== 'random')
     ? config.manualForceWinner
     : ((config as any)?.forcedWinner && (config as any).forcedWinner !== 'random')
@@ -708,11 +709,16 @@ export function getSyncedDragonTigerRoundOutcome(
     ? (config as any).manualForceTarget
     : null;
 
-  const isManualForce = !!forcedTarget;
+  const isRoundMatched = !(config as any)?.targetRoundId || (config as any).targetRoundId === roundId;
+  const isManualForce = isManualActive && !!forcedTarget && isRoundMatched;
   let targetSide: DragonTigerSide;
 
   if (isManualForce) {
     targetSide = forcedTarget as DragonTigerSide;
+  } else if ((config as any)?.autoLowRiskWinner && (config as any).autoLowRiskWinner !== 'random' && isRoundMatched) {
+    targetSide = (config as any).autoLowRiskWinner as DragonTigerSide;
+  } else if ((config as any)?.manualForceWinner && (config as any).manualForceWinner !== 'random' && isRoundMatched) {
+    targetSide = (config as any).manualForceWinner as DragonTigerSide;
   } else if (totalRealBets > 0) {
     // 🛡️ UNCONDITIONAL 100% HOUSE PROTECTION:
     // Calculates payout liability with 0-second latency across all players.

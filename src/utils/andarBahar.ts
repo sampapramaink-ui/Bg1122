@@ -186,6 +186,7 @@ export function simulateAndarBaharRound(
   dealingSequence: { side: AndarBaharSide; card: PlayingCard; isMatch: boolean }[];
 } {
   const rand = rng || Math.random;
+  const isManualActive = Boolean((config as any)?.isManualOverride);
   const forcedTarget = (config?.manualForceWinner && config.manualForceWinner !== 'random')
     ? config.manualForceWinner
     : ((config as any)?.forcedWinner && (config as any).forcedWinner !== 'random')
@@ -195,7 +196,7 @@ export function simulateAndarBaharRound(
     : null;
 
   let targetSide: AndarBaharSide;
-  const isManualForce = !!forcedTarget;
+  const isManualForce = isManualActive && !!forcedTarget;
 
   if (isManualForce) {
     targetSide = forcedTarget as AndarBaharSide;
@@ -212,7 +213,7 @@ export function simulateAndarBaharRound(
       targetSide = getBalancedNormalAndarBaharWinner(roundIndex);
     }
   } else {
-    // 🎲 Normal balanced play with anti-streak (never 3 in a row of the same winner)
+    // 🎲 Normal balanced play with anti-streak
     targetSide = getBalancedNormalAndarBaharWinner(roundIndex);
   }
 
@@ -333,6 +334,7 @@ export function getSyncedAndarBaharRoundDetails(roundIndex: number, config?: And
   const liveBahar = typeof config?.liveBetsBahar === 'number' ? config.liveBetsBahar : 0;
   const totalLiveBets = liveAndar + liveBahar;
 
+  const isManualActive = Boolean((config as any)?.isManualOverride);
   const forcedTarget = (config?.manualForceWinner && config.manualForceWinner !== 'random')
     ? config.manualForceWinner
     : ((config as any)?.forcedWinner && (config as any).forcedWinner !== 'random')
@@ -341,11 +343,17 @@ export function getSyncedAndarBaharRoundDetails(roundIndex: number, config?: And
     ? (config as any).manualForceTarget
     : null;
 
+  const isRoundMatched = !(config as any)?.targetRoundId || (config as any).targetRoundId === roundId;
+  const isManualForce = isManualActive && !!forcedTarget && isRoundMatched;
+
   let targetSide: AndarBaharSide;
-  const isManualForce = !!forcedTarget;
 
   if (isManualForce) {
     targetSide = forcedTarget as AndarBaharSide;
+  } else if ((config as any)?.manualForceWinner && (config as any).manualForceWinner !== 'random' && isRoundMatched) {
+    targetSide = (config as any).manualForceWinner as AndarBaharSide;
+  } else if ((config as any)?.autoLowRiskWinner && (config as any).autoLowRiskWinner !== 'random' && isRoundMatched) {
+    targetSide = (config as any).autoLowRiskWinner as AndarBaharSide;
   } else if (totalLiveBets > 0) {
     // 🛡️ UNCONDITIONAL 100% HOUSE PROTECTION:
     // When real user bets, house calculates payout liability with 0-second latency.

@@ -288,6 +288,38 @@ export const UserSideMenu: React.FC<UserSideMenuProps> = ({
 
         {/* PRIMARY MENU OPTIONS (In user requested exact sequence) */}
         <div className="p-4 space-y-2 flex-1">
+          {/* Admin Dashboard Access for Verified Admins */}
+          {(user?.role === 'admin' || checkIsAdminEmail(user?.email)) && (
+            <button
+              onClick={() => {
+                if (onOpenAdmin) {
+                  handleNavigation(onOpenAdmin);
+                }
+              }}
+              className="w-full p-3.5 bg-gradient-to-r from-amber-500/25 via-yellow-500/15 to-amber-950/40 hover:from-amber-500/35 hover:to-amber-900/50 border-2 border-amber-400 rounded-2xl flex items-center justify-between text-left transition group cursor-pointer shadow-lg shadow-amber-500/10 mb-3 relative overflow-hidden"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-yellow-500 flex items-center justify-center text-slate-950 font-black shadow-md group-hover:scale-110 transition-transform">
+                  <ShieldCheck className="w-5 h-5 stroke-[2.5]" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs sm:text-sm font-black text-white group-hover:text-amber-300 transition-colors">
+                      অ্যাডমিন প্যানেল (ADMIN PANEL)
+                    </span>
+                    <span className="px-1.5 py-0.2 rounded text-[8px] font-black bg-amber-400 text-slate-950 uppercase animate-pulse">
+                      PORTAL
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-amber-200/70">
+                    ডিপোজিট, উইথড্রয়াল, গেম ও ইউজার কন্ট্রোল
+                  </p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-amber-400 group-hover:translate-x-1 transition-all" />
+            </button>
+          )}
+
           <p className="text-[10px] font-black uppercase text-slate-500 tracking-wider px-1 pb-1">
             EXPLORE & PLAY
           </p>

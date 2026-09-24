@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Wallet, Plus, Bell } from 'lucide-react';
+import { Wallet, Plus, Bell, ShieldCheck } from 'lucide-react';
 import { User } from '../types';
 import { soundFx } from '../utils/audio';
 
@@ -22,7 +22,8 @@ export const Header: React.FC<HeaderProps> = React.memo(({
   onOpenDeposit,
   onOpenNotifications,
   onOpenProfile,
-  user
+  user,
+  onOpenAdmin
 }) => {
   const [isFlashingGreen, setIsFlashingGreen] = useState(false);
   const prevBalanceRef = useRef(balance);
@@ -123,6 +124,21 @@ export const Header: React.FC<HeaderProps> = React.memo(({
               <span className="hidden xs:inline font-mono font-black">DEPOSIT</span>
             </button>
           </div>
+
+          {/* Admin Panel Button (for Verified Admins) */}
+          {onOpenAdmin && (
+            <button
+              onClick={() => {
+                soundFx.playClick();
+                onOpenAdmin();
+              }}
+              className="px-2.5 py-1.5 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-amber-500/30 flex items-center gap-1.5 transition-all active:scale-95 shrink-0 border border-amber-300 cursor-pointer animate-pulse"
+              title="Open Admin Dashboard"
+            >
+              <ShieldCheck className="w-4 h-4 stroke-[2.5]" />
+              <span className="font-mono font-black tracking-wide">ADMIN</span>
+            </button>
+          )}
 
           {/* Notification Bell Icon */}
           <button

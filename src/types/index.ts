@@ -442,6 +442,7 @@ export interface LotteryDraw {
   endTime: number; // Unix timestamp in ms
   drawDurationMs: number; // duration for auto-reset
   winningNumbers?: number[]; // array of winning digits/numbers
+  lastWinningResult?: number[];
   status: 'upcoming' | 'live' | 'completed';
   totalTicketsSold: number;
   bannerGradient: string;
@@ -479,6 +480,8 @@ export interface PurchasedTicket {
   drawDate?: string;
   status: TicketStatus;
   wonAmount?: number;
+  winAmount?: number;
+  settledAt?: string;
   matchCount?: number;
   selectedCar?: 'red' | 'black' | 'yellow';
   category?: string;

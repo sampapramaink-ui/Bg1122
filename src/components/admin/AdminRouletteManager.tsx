@@ -36,7 +36,7 @@ const DEFAULT_ROULETTE_CONFIG: RouletteConfig = {
   rtpMode: 'european_standard',
   manualNextNumber: 17,
   manualNextNumberActive: false,
-  minBet: 10,
+  minBet: 20,
   maxBet: 50000,
   maxTotalPayoutLimit: 200000,
   isRouletteEnabled: true,
@@ -257,6 +257,25 @@ export const AdminRouletteManager: React.FC = () => {
           setIsManualOverrideEnabled(false);
           setSelectedManualNumber(null);
           setIsAutoLowRiskActive(true);
+          setDoc(doc(db, 'roulette_live_state', 'current_round'), {
+            isManualOverride: false,
+            manualWinningNumber: null,
+            isAutoLowRiskEnabled: true,
+            updatedAt: new Date().toISOString()
+          }, { merge: true }).catch(() => {});
+          setDoc(doc(db, 'roulette_config', 'main'), {
+            manualNextNumberActive: false,
+            isManualOverride: false,
+            manualWinningNumber: null,
+            updatedAt: new Date().toISOString()
+          }, { merge: true }).catch(() => {});
+          setDoc(doc(db, 'game_settings', 'roulette'), {
+            manualNextNumberActive: false,
+            manualForceWinner: null,
+            manualWinningNumber: null,
+            rtpMode: 'house_protect',
+            updatedAt: new Date().toISOString()
+          }, { merge: true }).catch(() => {});
         }
       }
     };
@@ -274,10 +293,22 @@ export const AdminRouletteManager: React.FC = () => {
     return liveBets.filter(b => b.roundId === currentRoundId);
   }, [liveBets, currentRoundId]);
 
+  // Resolved active lightning numbers with fallback to deterministic synced generation
+  const resolvedLightningNumbers = useMemo(() => {
+    if (isManualLightningEnabled && manualLightningNumbers && manualLightningNumbers.length > 0) {
+      return manualLightningNumbers;
+    }
+    return getSyncedLightningMultipliers(currentRoundId);
+  }, [isManualLightningEnabled, manualLightningNumbers, currentRoundId]);
+
   // Calculate complete real-time liabilities & AI recommended low-risk pocket with deterministic round seed
   const riskAnalysis = useMemo(() => {
-    return calculateAllNumbersLiability(currentRoundBets, currentRoundId);
-  }, [currentRoundBets, currentRoundId]);
+    return calculateAllNumbersLiability(
+      currentRoundBets, 
+      currentRoundId,
+      { lightningNumbers: resolvedLightningNumbers.map(l => l.number) }
+    );
+  }, [currentRoundBets, currentRoundId, resolvedLightningNumbers]);
 
   // Sync calculated low-risk recommendation automatically to Firestore current_round state for admin monitoring
   useEffect(() => {
@@ -407,14 +438,6 @@ export const AdminRouletteManager: React.FC = () => {
     } catch (e) {}
   };
 
-  // Resolved active lightning numbers with fallback to deterministic synced generation
-  const resolvedLightningNumbers = useMemo(() => {
-    if (isManualLightningEnabled && manualLightningNumbers && manualLightningNumbers.length > 0) {
-      return manualLightningNumbers;
-    }
-    return getSyncedLightningMultipliers(currentRoundId);
-  }, [isManualLightningEnabled, manualLightningNumbers, currentRoundId]);
-
   // Continuous 24/7 history map merged with Firestore records
   const firestoreRoundsMap = useMemo(() => {
     const map = new Map<string, any>();
@@ -445,16 +468,36 @@ export const AdminRouletteManager: React.FC = () => {
 
     // Get the exact winning outcome
     let winNum: number;
+    const isBettingActive = currentRoundBets.length > 0;
+    const lightningSet = new Set(resolvedLightningNumbers.map(l => l.number));
+
+    const existingDoc = firestoreRoundsMap.get(currentRoundId);
     if (isManualOverrideEnabled && typeof selectedManualNumber === 'number') {
+      // 1. Explicit Admin Force Manual Override
       winNum = selectedManualNumber;
-    } else if (isAutoLowRiskActive && typeof riskAnalysis.lowestRiskNumber === 'number') {
+    } else if (existingDoc && typeof existingDoc.winningNumber === 'number' && (!isBettingActive || !lightningSet.has(existingDoc.winningNumber))) {
+      winNum = existingDoc.winningNumber;
+    } else if (isAutoLowRiskActive && typeof riskAnalysis.lowestRiskNumber === 'number' && (!isBettingActive || !lightningSet.has(riskAnalysis.lowestRiskNumber))) {
       winNum = riskAnalysis.lowestRiskNumber;
     } else {
-      winNum = getSyncedRoundDeterministicWinNumber(currentRoundId);
+      const naturalWin = getSyncedRoundDeterministicWinNumber(currentRoundId);
+      if (isBettingActive && lightningSet.has(naturalWin)) {
+        winNum = riskAnalysis.lowestRiskNumber;
+      } else {
+        winNum = naturalWin;
+      }
+    }
+
+    // 100% Guaranteed Protection: While bets are active, ball CANNOT land on lightning number unless manually forced
+    if (isBettingActive && !isManualOverrideEnabled && lightningSet.has(winNum)) {
+      const safeNonLightning = riskAnalysis.numberSummaries
+        .filter(s => !lightningSet.has(s.number))
+        .sort((a, b) => b.netHouseProfit - a.netHouseProfit);
+      winNum = safeNonLightning[0]?.number ?? (winNum === 0 ? 1 : 0);
     }
 
     const lucky = resolvedLightningNumbers.find(l => l.number === winNum);
-    const multiplier = lucky ? lucky.multiplier : 36;
+    const multiplier = lucky ? lucky.multiplier : 30;
     const color = getRouletteNumberColor(winNum);
     const nowIso = new Date().toISOString();
 
@@ -920,7 +963,7 @@ export const AdminRouletteManager: React.FC = () => {
                 {synced24x7History.slice(0, 15).map((r, idx) => {
                   const isGreen = r.color === 'green' || r.winningNumber === 0;
                   const isRed = r.color === 'red';
-                  const hasLightningMult = Boolean(r.multiplier && r.multiplier > 36);
+                  const hasLightningMult = Boolean(r.multiplier && r.multiplier > 30);
                   const isNewest = idx === 0;
 
                   return (
@@ -938,7 +981,7 @@ export const AdminRouletteManager: React.FC = () => {
                         isRed ? 'bg-rose-600 text-white shadow-[0_0_8px_rgba(225,29,72,0.5)]' :
                         'bg-slate-900 border border-slate-700 text-white shadow-[0_0_8px_rgba(15,23,42,0.5)]'
                       }`}
-                      title={`রাউন্ড #${r.roundId} | বিজয়ী সংখ্যা: ${r.winningNumber} (${r.color}) | মাল্টিপ্লায়ার: ${r.multiplier || 36}X`}
+                      title={`রাউন্ড #${r.roundId} | বিজয়ী সংখ্যা: ${r.winningNumber} (${r.color}) | মাল্টিপ্লায়ার: ${r.multiplier || 30}X`}
                     >
                       <span>{r.winningNumber}</span>
                       {hasLightningMult && <span className="ml-1 text-[8px]">⚡{r.multiplier}X</span>}
@@ -1480,10 +1523,10 @@ export const AdminRouletteManager: React.FC = () => {
                   <span className="text-[11px] font-bold text-slate-400">সর্বশেষ ফলাফল:</span>
                   <span className={`w-6 h-6 rounded-full flex items-center justify-center font-black text-xs text-white ${
                     displayLastSettledResult.color === 'green' ? 'bg-emerald-600' : displayLastSettledResult.color === 'red' ? 'bg-rose-600' : 'bg-slate-800'
-                  } ${displayLastSettledResult.multiplier && displayLastSettledResult.multiplier > 36 ? 'animate-lightning-blink ring-2 ring-amber-300' : ''}`}>
+                  } ${displayLastSettledResult.multiplier && displayLastSettledResult.multiplier > 30 ? 'animate-lightning-blink ring-2 ring-amber-300' : ''}`}>
                     {displayLastSettledResult.winningNumber}
                   </span>
-                  {displayLastSettledResult.multiplier && displayLastSettledResult.multiplier > 36 && (
+                  {displayLastSettledResult.multiplier && displayLastSettledResult.multiplier > 30 && (
                     <span className="px-2 py-0.5 rounded-lg bg-amber-400 text-slate-950 font-black text-[10px] border border-white animate-multiplier-blink shadow-sm">
                       ⚡ {displayLastSettledResult.multiplier}X
                     </span>
@@ -1504,7 +1547,7 @@ export const AdminRouletteManager: React.FC = () => {
                 synced24x7History.slice(0, 15).map((r, idx) => {
                   const isGreen = r.color === 'green' || r.winningNumber === 0;
                   const isRed = r.color === 'red';
-                  const hasLightningMult = r.multiplier && r.multiplier > 36;
+                  const hasLightningMult = r.multiplier && r.multiplier > 30;
 
                   return (
                     <div 
@@ -1516,7 +1559,7 @@ export const AdminRouletteManager: React.FC = () => {
                           ? 'bg-slate-900 border-amber-500/50 shadow-md shadow-amber-500/10' 
                           : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
                       }`}
-                      title={`Round #${r.roundId} | ${r.winningNumber} (${r.color}) | Multiplier: ${r.multiplier || 36}X | ${r.settledAt}`}
+                      title={`Round #${r.roundId} | ${r.winningNumber} (${r.color}) | Multiplier: ${r.multiplier || 30}X | ${r.settledAt}`}
                     >
                       <span className={`w-6 h-6 rounded-full flex items-center justify-center font-black text-xs text-white shrink-0 ${
                         isGreen ? 'bg-emerald-600' : isRed ? 'bg-rose-600' : 'bg-slate-800'
@@ -2141,7 +2184,7 @@ export const AdminRouletteManager: React.FC = () => {
                 <input
                   type="number"
                   value={config.minBet}
-                  onChange={(e) => setConfig({ ...config, minBet: parseInt(e.target.value) || 10 })}
+                  onChange={(e) => setConfig({ ...config, minBet: parseInt(e.target.value) || 20 })}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none"
                 />
               </div>

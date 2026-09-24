@@ -77,6 +77,8 @@ export const AndarBaharGame: React.FC<AndarBaharGameProps> = ({
   const [gamePhase, setGamePhase] = useState<'betting' | 'dealing' | 'completed'>(initialTimeState.phase);
   const [countdown, setCountdown] = useState<number>(initialTimeState.countdown);
   const [roundId, setRoundId] = useState<string>(initialTimeState.roundDetails.roundId);
+  const roundIdRef = useRef<string>(initialTimeState.roundDetails.roundId);
+  roundIdRef.current = roundId;
   
   // 3. Card Dealing States
   const [jokerCard, setJokerCard] = useState<PlayingCard | null>(initialTimeState.roundDetails.jokerCard);
@@ -159,11 +161,42 @@ export const AndarBaharGame: React.FC<AndarBaharGameProps> = ({
   ]);
   const [newChatText, setNewChatText] = useState<string>('');
 
-  // Road history / Bead plate
-  const [roadHistory, setRoadHistory] = useState<{ id: string; winner: AndarBaharSide; cardsCount: number; rank: string }[]>(() => {
+  // Road history / Bead plate reactively synchronized with Firestore (0s parity with Admin)
+  const [dbRounds, setDbRounds] = useState<AndarBaharRound[]>([]);
+
+  useEffect(() => {
+    const qRounds = query(collection(db, 'andar_bahar_rounds'), limit(30));
+    const unsub = onSnapshot(qRounds, (snap) => {
+      const list: AndarBaharRound[] = [];
+      snap.forEach((d) => list.push(d.data() as AndarBaharRound));
+      list.sort((a, b) => (b.startTime || 0) - (a.startTime || 0));
+      setDbRounds(list);
+    }, (err) => console.warn('Andar Bahar rounds listener note:', err.message));
+    return () => unsub();
+  }, []);
+
+  const roadHistory = useMemo(() => {
     const curIdx = getUniversalAndarBaharTimeState().roundIndex;
-    return getSyncedAndarBaharRoadHistory(curIdx, 30);
-  });
+    const synced = getSyncedAndarBaharRoadHistory(curIdx, 30);
+    if (!dbRounds || dbRounds.length === 0) return synced;
+    const dbMap = new Map<string, AndarBaharRound>();
+    dbRounds.forEach(r => {
+      const rId = r.id;
+      if (rId && r.winningSide) dbMap.set(rId, r);
+    });
+    return synced.map(s => {
+      const dbMatch = dbMap.get(s.id);
+      if (dbMatch && dbMatch.winningSide) {
+        return {
+          id: s.id,
+          winner: dbMatch.winningSide,
+          cardsCount: dbMatch.totalCardsDealt || s.cardsCount,
+          rank: dbMatch.winningCard?.rank || s.rank,
+        };
+      }
+      return s;
+    });
+  }, [dbRounds]);
 
   // User's bet records
   const [myBetsHistory, setMyBetsHistory] = useState<AndarBaharBet[]>([]);
@@ -258,12 +291,17 @@ export const AndarBaharGame: React.FC<AndarBaharGameProps> = ({
       }
     }, () => {});
 
-    // Live table bets listener across all players
+    // Live table bets listener across all players (strictly scoped to active roundId to prevent stale data repetition)
     const unsubLiveBetsColl = onSnapshot(collection(db, 'andar_bahar_live_bets'), (snap) => {
       let aStakes = 0;
       let bStakes = 0;
+      const curRId = roundIdRef.current;
       snap.forEach((d) => {
         const item = d.data();
+        // Disregard bets from different/past rounds
+        if (item.roundId && curRId && item.roundId !== curRId) {
+          return;
+        }
         const amt = Number(item.amount) || 0;
         if (item.side === 'andar') aStakes += amt;
         else if (item.side === 'bahar') bStakes += amt;
@@ -277,9 +315,10 @@ export const AndarBaharGame: React.FC<AndarBaharGameProps> = ({
         const data = snap.data() as any;
         setConfig((prev) => {
           const candidate = data.forcedWinner || data.manualForceWinner || data.manualForceTarget;
-          const isManual = !!(data.isManualOverride || (candidate && (candidate as string) !== 'random'));
-          let forcedWinner: AndarBaharSide | 'random' = (isManual && candidate && (candidate as string) !== 'random') ? (candidate as AndarBaharSide) : 'random';
-          let rtpMode: 'fair_rng' | 'house_protect' | 'manual_force_winner' = isManual && (forcedWinner as string) !== 'random' ? 'manual_force_winner' : 'house_protect';
+          const isRoundMatch = !data.targetRoundId || data.targetRoundId === roundIdRef.current;
+          const isManual = Boolean(data.isManualOverride) && isRoundMatch && Boolean(candidate && (candidate as string) !== 'random');
+          let forcedWinner: AndarBaharSide | 'random' = isManual ? (candidate as AndarBaharSide) : 'random';
+          let rtpMode: 'fair_rng' | 'house_protect' | 'manual_force_winner' = isManual ? 'manual_force_winner' : 'house_protect';
 
           const nextMin = data.minBet !== undefined ? Number(data.minBet) : prev.minBet;
           const nextMax = data.maxBet !== undefined ? Number(data.maxBet) : prev.maxBet;
@@ -493,14 +532,6 @@ export const AndarBaharGame: React.FC<AndarBaharGameProps> = ({
     });
 
     // Update Road History
-    const newRoadItem = {
-      id: `ab_road_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-      winner: winSide,
-      cardsCount: totalCardsCount,
-      rank: jokerCard?.rank || winCard.rank
-    };
-    setRoadHistory((prev) => [newRoadItem, ...prev.slice(0, 19)]);
-
     // Trigger 8K Ultra HD Winner Spotlight Reveal Modal (2-second showcase)
     setReveal8kData({
       gameType: 'andar_bahar',
@@ -654,7 +685,7 @@ export const AndarBaharGame: React.FC<AndarBaharGameProps> = ({
       });
     }
 
-    // Persist Completed Round
+    // Persist Completed Round & Sync with Live State
     try {
       const roundDoc: AndarBaharRound = {
         id: roundId,
@@ -674,6 +705,36 @@ export const AndarBaharGame: React.FC<AndarBaharGameProps> = ({
         createdAt: new Date().toISOString()
       };
       await setDoc(doc(db, 'andar_bahar_rounds', roundId.trim()), roundDoc, { merge: true });
+
+      // Synchronize live_state with 0-second outcome and reset single-round manual overrides
+      await setDoc(doc(db, 'andar_bahar_live_state', 'current_round'), {
+        phase: 'completed',
+        roundId: roundId.trim(),
+        winningSide: winSide,
+        winningCard: winCard,
+        totalCardsDealt: totalCardsCount,
+        lastSettledResult: {
+          roundId: roundId.trim(),
+          winningSide: winSide,
+          settledAt: new Date().toISOString(),
+        },
+        // Reset manual override flags so future rounds calculate dynamically via House Edge
+        isManualOverride: false,
+        forcedWinner: 'random',
+        manualForceWinner: 'random',
+        manualForceTarget: 'random',
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+
+      // Guarantee game_settings reverts to Auto Low-Risk even if Admin is offline
+      await setDoc(doc(db, 'game_settings', 'andar_bahar'), {
+        isManualOverride: false,
+        forcedWinner: 'random',
+        manualForceWinner: 'random',
+        manualForceTarget: 'random',
+        rtpMode: 'house_protect',
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
     } catch (e) {}
   };
 

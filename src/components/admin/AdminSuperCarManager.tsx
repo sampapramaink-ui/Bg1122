@@ -31,7 +31,7 @@ import {
   getLocalTodayDateStr,
   SuperCarSlotItem
 } from '../../utils/supercar';
-import { calculateSuperCarLiveBettingStats, SuperCarLiveBettingStats } from '../../utils/supercarBettingEngine';
+import { calculateSuperCarLiveBettingStats, SuperCarLiveBettingStats, SuperCarLivePoolData } from '../../utils/supercarBettingEngine';
 import { soundFx } from '../../utils/audio';
 import { PaginationBar } from '../PaginationBar';
 import { getUserDisplayCode, generatePermanentUserCode } from '../../utils/databaseSync';
@@ -116,10 +116,13 @@ export const AdminSuperCarManager: React.FC<AdminSuperCarManagerProps> = ({ conf
       const timeLabel = getSlotTimeLabel(slotNumber);
       const newManualWinners = {
         ...(config.manualSlotWinners || {}),
-        [slotNumber]: carColor,
         [targetIssueId]: carColor
       };
-      await onUpdateConfig({ manualSlotWinners: newManualWinners });
+      await onUpdateConfig({
+        manualSlotWinners: newManualWinners,
+        resultMode: 'manual',
+        manualWinner: carColor
+      });
 
       await setDoc(doc(db, 'supercar_draws', targetIssueId), {
         id: targetIssueId,
@@ -145,6 +148,14 @@ export const AdminSuperCarManager: React.FC<AdminSuperCarManagerProps> = ({ conf
   const [tickets, setTickets] = useState<PurchasedTicket[]>([]);
   const [usersMap, setUsersMap] = useState<{ [uid: string]: User }>({});
   const [drawsMap, setDrawsMap] = useState<{ [issueId: string]: any }>({});
+  const [livePools, setLivePools] = useState<Record<string, SuperCarLivePoolData>>({});
+
+  // Filter tickets for Super Car
+  const supercarTickets = React.useMemo(() => {
+    return tickets.filter(
+      (t) => t.category === 'Three Super Car Draw' || t.drawTitle?.includes('Super Car')
+    );
+  }, [tickets]);
 
   // Uploader & Action States
   const [uploadingCar, setUploadingCar] = useState<SuperCarColor | null>(null);
@@ -171,7 +182,7 @@ export const AdminSuperCarManager: React.FC<AdminSuperCarManagerProps> = ({ conf
   const [adminTargetY, adminTargetM, adminTargetD] = (adminSelectedDateStr || todayStr).split('-').map(Number);
   const adminTargetDateObj = new Date(adminTargetY, adminTargetM - 1, adminTargetD);
 
-  const adminDailySlots: SuperCarSlotItem[] = getSuperCarDailySlots(adminTargetDateObj, pastDrawsList, config);
+  const adminDailySlots: SuperCarSlotItem[] = getSuperCarDailySlots(adminTargetDateObj, pastDrawsList, config, supercarTickets);
 
   // Helper for admin target date string formatting
   const getAdminDateStr = () => {
@@ -248,8 +259,33 @@ export const AdminSuperCarManager: React.FC<AdminSuperCarManagerProps> = ({ conf
           await setDoc(doc(db, 'tickets', t.id), {
             status: isWin ? 'win' : 'loss',
             wonAmount: wonAmt,
+            winAmount: wonAmt,
             settledAt: new Date().toISOString()
           }, { merge: true });
+
+          if (isWin && wonAmt > 0 && t.userId) {
+            const userDocRef = doc(db, 'users', t.userId);
+            const uSnap = await getDoc(userDocRef);
+            if (uSnap.exists()) {
+              const uData = uSnap.data();
+              const isBonus = t.walletType === 'bonus';
+              const newBal = isBonus ? (uData.balance || 0) : ((uData.balance || 0) + wonAmt);
+              const newBonus = isBonus ? ((uData.bonusBalance || 0) + wonAmt) : (uData.bonusBalance || 0);
+              const newWon = (uData.totalWon || 0) + wonAmt;
+              await setDoc(userDocRef, { balance: newBal, bonusBalance: newBonus, totalWon: newWon }, { merge: true });
+
+              const txId = `TXN-WIN-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+              await setDoc(doc(db, 'transactions', txId), {
+                id: txId,
+                userId: t.userId,
+                type: 'win',
+                amount: wonAmt,
+                walletType: isBonus ? 'bonus' : 'main',
+                description: `3 Super Car Draw Win: Slot #${slotNum} (${editWinningCar.toUpperCase()} CAR) - Net Prize ₹${wonAmt} Credited`,
+                date: new Date().toLocaleString()
+              }, { merge: true });
+            }
+          }
         }
       }
 
@@ -296,6 +332,15 @@ export const AdminSuperCarManager: React.FC<AdminSuperCarManagerProps> = ({ conf
       setDrawsMap(map);
     }, (err) => console.warn('Supercar draws listener notice:', err.message));
 
+    // 2.5 Listen to live pool rounds for concurrent player sync
+    const unsubLive = onSnapshot(collection(db, 'supercar_live_rounds'), (snap) => {
+      const pools: Record<string, SuperCarLivePoolData> = {};
+      snap.forEach((docSnap) => {
+        pools[docSnap.id] = docSnap.data() as SuperCarLivePoolData;
+      });
+      setLivePools(pools);
+    }, (err) => console.warn('Supercar live pools listener notice:', err.message));
+
     // 3. Listen to users directory
     const unsubUsers = onSnapshot(collection(db, 'users'), (snap) => {
       const map: { [uid: string]: User } = {};
@@ -308,14 +353,24 @@ export const AdminSuperCarManager: React.FC<AdminSuperCarManagerProps> = ({ conf
     return () => {
       unsubTickets();
       unsubDraws();
+      unsubLive();
       unsubUsers();
     };
   }, []);
 
-  // Filter tickets for Super Car
-  const supercarTickets = tickets.filter(
-    (t) => t.category === 'Three Super Car Draw' || t.drawTitle?.includes('Super Car')
-  );
+  // Automatically restore Auto Low-Risk mode when transitioning to the next slot
+  const prevSlotRef = React.useRef(currentSched.drawIndex);
+  useEffect(() => {
+    if (prevSlotRef.current !== currentSched.drawIndex) {
+      prevSlotRef.current = currentSched.drawIndex;
+      if (config.resultMode === 'manual' || config.manualWinner) {
+        onUpdateConfig({
+          resultMode: 'auto',
+          manualWinner: undefined
+        });
+      }
+    }
+  }, [currentSched.drawIndex, config.resultMode, config.manualWinner, onUpdateConfig]);
 
   // 24/7 Total Daily Slots (144 slots in 10-min intervals)
   const totalSlotsCount = getSuperCarSlotsPerDay(config);
@@ -476,17 +531,20 @@ export const AdminSuperCarManager: React.FC<AdminSuperCarManagerProps> = ({ conf
         await setDoc(doc(db, 'tickets', t.id), {
           status: isWinner ? 'win' : 'loss',
           wonAmount: payout,
+          winAmount: payout,
           settledAt: new Date().toISOString()
         }, { merge: true });
 
-        if (isWinner && payout > 0) {
+        if (isWinner && payout > 0 && t.userId) {
           const userDocRef = doc(db, 'users', t.userId);
           const uSnap = await getDoc(userDocRef);
           if (uSnap.exists()) {
             const uData = uSnap.data();
-            const newBal = (uData.balance || 0) + payout;
+            const isBonus = t.walletType === 'bonus';
+            const newBal = isBonus ? (uData.balance || 0) : ((uData.balance || 0) + payout);
+            const newBonus = isBonus ? ((uData.bonusBalance || 0) + payout) : (uData.bonusBalance || 0);
             const newWon = (uData.totalWon || 0) + payout;
-            await setDoc(userDocRef, { balance: newBal, totalWon: newWon }, { merge: true });
+            await setDoc(userDocRef, { balance: newBal, bonusBalance: newBonus, totalWon: newWon }, { merge: true });
 
             // Log Transaction
             const txId = `TXN-WIN-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -495,7 +553,8 @@ export const AdminSuperCarManager: React.FC<AdminSuperCarManagerProps> = ({ conf
               userId: t.userId,
               type: 'win',
               amount: payout,
-              description: `3 Super Car Draw Win Payout: Slot #${slotNum} (${winningCar.toUpperCase()} CAR)`,
+              walletType: isBonus ? 'bonus' : 'main',
+              description: `3 Super Car Draw Win: Slot #${slotNum} (${winningCar.toUpperCase()} CAR) - Net Prize ₹${payout} Credited`,
               date: new Date().toLocaleString()
             }, { merge: true });
           }
@@ -736,7 +795,8 @@ export const AdminSuperCarManager: React.FC<AdminSuperCarManagerProps> = ({ conf
     activeLiveSlotNum,
     activeLiveIssueId,
     supercarTickets,
-    config
+    config,
+    livePools[activeLiveIssueId]
   );
 
   // Tickets for active live slot
@@ -1340,8 +1400,8 @@ export const AdminSuperCarManager: React.FC<AdminSuperCarManagerProps> = ({ conf
                       <span className="text-xs font-black text-yellow-400 flex items-center gap-1.5">
                         🏎️ YELLOW CAR (3.5x)
                       </span>
-                      <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                        🔒 NO AUTO
+                      <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        🛡️ AUTO PROTECTED
                       </span>
                     </div>
 
@@ -1358,9 +1418,9 @@ export const AdminSuperCarManager: React.FC<AdminSuperCarManagerProps> = ({ conf
                         <span className="text-slate-400">Payout Liability (3.5x):</span>
                         <span className="font-black text-yellow-400">₹{liveBettingStats.yellow.potentialPayout.toLocaleString('en-IN')}</span>
                       </div>
-                      <div className="flex items-center gap-1 text-[10px] text-amber-300 font-sans pt-1">
-                        <ShieldAlert className="w-3.5 h-3.5 shrink-0 text-amber-400" />
-                        <span>হলুদ কার্ড কখনোই অটোমেটিক মোডে আসবে না।</span>
+                      <div className="flex items-center gap-1 text-[10px] text-emerald-300 font-sans pt-1">
+                        <ShieldAlert className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
+                        <span>ইউজার ফাঁকা রাখলে বা কম বাজি ধরলে হাউস প্রফিট রক্ষার্থে এটিও অটো বিজয়ী হতে পারে।</span>
                       </div>
                     </div>
 
@@ -1446,9 +1506,9 @@ export const AdminSuperCarManager: React.FC<AdminSuperCarManagerProps> = ({ conf
                           {liveBettingStats.calculatedWinner.toUpperCase()} CAR
                         </span>
                         <span className="text-[10px] text-slate-500 block font-sans">
-                          {liveBettingStats.calculatedWinner === 'yellow'
-                            ? 'Admin Manual Choice'
-                            : 'Calculated via House Edge formula'}
+                          {liveBettingStats.isManualOverride
+                            ? 'Admin Manual Override'
+                            : 'ফাঁকা/কম বাজি ও জিরো-লস হাউস প্রটেকশন'}
                         </span>
                       </div>
                     </div>

@@ -153,7 +153,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     }
   };
 
-  const isAdminUser = currentUser.email?.toLowerCase() === 'asishp92@gmail.com' || currentUser.role === 'admin';
+  const isAdminUser = Boolean(currentUser.role === 'admin' || checkIsAdminEmail(currentUser.email));
   const vipPts = currentUser.vipPoints || (currentUser.totalSpent ? Math.floor(currentUser.totalSpent / 10) : 120);
   const currentLevel = calculateVipLevel(vipPts);
   const currentTierInfo = VIP_TIERS[currentLevel];
@@ -445,6 +445,58 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               <span>LOCK</span>
             </div>
           </button>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 1.5 🛡️ DEDICATED ADMIN CONTROL PANEL CARD (VISIBLE FOR VERIFIED ADMINS)    */}
+      {/* ========================================================================= */}
+      {isAdminUser && onOpenAdmin && (
+        <div className="pt-2">
+          <div
+            onClick={() => {
+              soundFx.playClick();
+              onOpenAdmin();
+            }}
+            role="button"
+            tabIndex={0}
+            aria-label="Open Admin Control Panel"
+            className="group relative w-full overflow-hidden rounded-3xl p-[2.5px] transition-all duration-300 hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+          >
+            {/* Glowing Golden Ring */}
+            <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-600 opacity-90 blur-[1px] group-hover:opacity-100 transition-all duration-300 animate-pulse" />
+
+            {/* Inner Card Body */}
+            <div className="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-4 rounded-[22px] bg-gradient-to-r from-slate-950 via-slate-900 to-amber-950/80 px-6 py-5 shadow-2xl backdrop-blur-xl border border-amber-400/80">
+              <div className="flex items-center gap-4 text-center sm:text-left">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-yellow-500 p-0.5 shadow-lg shadow-amber-500/40 group-hover:scale-105 transition-transform shrink-0">
+                  <div className="w-full h-full rounded-[14px] bg-slate-950 flex items-center justify-center text-amber-400">
+                    <ShieldCheck className="w-6 h-6 text-amber-400 stroke-[2.5]" />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-center sm:justify-start gap-2 flex-wrap">
+                    <h3 className="text-base font-black text-white group-hover:text-amber-300 transition-colors">
+                      অ্যাডমিন ড্যাশবোর্ড (ADMIN PANEL)
+                    </h3>
+                    <span className="bg-amber-400 text-slate-950 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider animate-pulse">
+                      FULL ACCESS
+                    </span>
+                  </div>
+                  <p className="text-xs text-amber-200/80 mt-0.5 font-medium">
+                    ডিপোজিট, উইথড্রয়াল, ইউজার ডাটাবেস ও গেম কন্ট্রোল
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-300 hover:to-yellow-400 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/30 shrink-0">
+                <ShieldCheck className="w-4 h-4 stroke-[3]" />
+                <span>OPEN PANEL</span>
+                <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform stroke-[3]" />
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

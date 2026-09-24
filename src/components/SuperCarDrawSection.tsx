@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Sparkles, Trophy, Flame, Disc, Clock, ShieldCheck, Ticket, Zap, Lock, AlertTriangle } from 'lucide-react';
 import { SuperCarColor, SuperCarDrawIssue, SuperCarConfig, PurchasedTicket, BonusBalanceRules } from '../types';
-import { SUPER_CARS, getSuperCarInfo, getCurrentSuperCarSchedule, formatCountdown } from '../utils/supercar';
+import { SUPER_CARS, getSuperCarInfo, getCurrentSuperCarSchedule, formatCountdown, getWinningCarForSlot } from '../utils/supercar';
+import { SuperCarLivePoolData } from '../utils/supercarBettingEngine';
 import { SuperCarResultsModal } from './SuperCarResultsModal';
 import { soundFx } from '../utils/audio';
 
@@ -13,6 +14,7 @@ interface SuperCarDrawSectionProps {
   currentIssue: SuperCarDrawIssue | null;
   userTickets: PurchasedTicket[];
   pastDraws: SuperCarDrawIssue[];
+  livePools?: Record<string, SuperCarLivePoolData>;
   onConfirmBuyTicket: (carColor: SuperCarColor, quantity: number, totalCost: number, issueId?: string, slotNum?: number, walletType?: 'main' | 'bonus') => void;
   onDrawResolved?: (issueId: string, winningCar: SuperCarColor) => void;
   onOpenFullArena?: (carColor?: SuperCarColor) => void;
@@ -27,6 +29,7 @@ export const SuperCarDrawSection: React.FC<SuperCarDrawSectionProps> = React.mem
   currentIssue,
   userTickets,
   pastDraws,
+  livePools,
   onConfirmBuyTicket,
   onDrawResolved,
   onOpenFullArena,
@@ -104,40 +107,16 @@ export const SuperCarDrawSection: React.FC<SuperCarDrawSectionProps> = React.mem
     return false;
   };
 
-  // Helper to determine the exact Admin Panel set winning car
-  const getAdminWinningCar = (): SuperCarColor => {
-    if (config?.resultMode === 'manual' && config?.manualWinner) {
-      return config.manualWinner;
-    }
-    const manualSlotWinner = config?.manualSlotWinners?.[scheduleInfo.issueId] || config?.manualSlotWinners?.[scheduleInfo.drawIndex];
-    if (manualSlotWinner) {
-      return manualSlotWinner;
-    }
-    if (currentIssue?.winningCar) {
-      return currentIssue.winningCar;
-    }
-    if (pastDraws && pastDraws.length > 0 && pastDraws[0].winningCar) {
-      return pastDraws[0].winningCar;
-    }
-    // Fallback deterministic index per issue draw index
-    const colors: SuperCarColor[] = ['red', 'black', 'yellow'];
-    return colors[(scheduleInfo.drawIndex * 7) % 3];
-  };
+  const prevScheduleRef = React.useRef(scheduleInfo);
 
   // Robust check for enabled status: default to true if undefined, handle string "true"/"false" or boolean
   const isEnabled = config?.enabled === undefined
     ? true
     : (config.enabled === true || String(config.enabled).toLowerCase() === 'true');
 
-  // Early return if game is disabled in config
-  if (!config || !isEnabled) {
-    return null;
-  }
-
-  const prevScheduleRef = React.useRef(scheduleInfo);
-
   // Synchronized ultra-smooth 1000ms ticker for live countdown and draw resolution
   useEffect(() => {
+    if (!isEnabled) return;
     const timer = setInterval(() => {
       const cfg = configRef.current;
       const updatedSchedule = getCurrentSuperCarSchedule(cfg);
@@ -154,22 +133,15 @@ export const SuperCarDrawSection: React.FC<SuperCarDrawSectionProps> = React.mem
         const resolvedIssueId = isSlotChanged ? prevSchedule.issueId : updatedSchedule.issueId;
         const resolvedDrawIndex = isSlotChanged ? prevSchedule.drawIndex : updatedSchedule.drawIndex;
 
-        let winner: SuperCarColor = 'red';
-        if (cfg?.resultMode === 'manual' && cfg?.manualWinner) {
-          winner = cfg.manualWinner;
-        } else {
-          const manualSlotWinner = cfg?.manualSlotWinners?.[resolvedIssueId] || cfg?.manualSlotWinners?.[resolvedDrawIndex];
-          if (manualSlotWinner) {
-            winner = manualSlotWinner;
-          } else if (currentIssueRef.current?.winningCar) {
-            winner = currentIssueRef.current.winningCar;
-          } else if (pastDrawsRef.current && pastDrawsRef.current.length > 0 && pastDrawsRef.current[0].winningCar) {
-            winner = pastDrawsRef.current[0].winningCar;
-          } else {
-            const colors: SuperCarColor[] = ['red', 'black', 'yellow'];
-            winner = colors[(resolvedDrawIndex * 7) % 3];
-          }
-        }
+        // Authoritative House Edge & Empty Spot Resolution (100% synchronized with Admin Panel)
+        const winner: SuperCarColor = getWinningCarForSlot(
+          resolvedDrawIndex,
+          resolvedIssueId,
+          pastDrawsRef.current,
+          cfg,
+          userTickets,
+          livePools?.[resolvedIssueId]
+        );
 
         const winnerIdx = ['red', 'black', 'yellow'].indexOf(winner);
         if (winnerIdx !== -1) {
@@ -216,6 +188,10 @@ export const SuperCarDrawSection: React.FC<SuperCarDrawSectionProps> = React.mem
 
     return () => clearInterval(shuffleInterval);
   }, [scheduleInfo.isShuffling]);
+
+  if (!config || !isEnabled) {
+    return null;
+  }
 
   // Split countdown string (e.g., "03:13") into minutes and seconds
   const countdownFormatted = formatCountdown(scheduleInfo.timeRemainingMs);

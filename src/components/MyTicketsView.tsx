@@ -1281,8 +1281,17 @@ export const MyTicketsView: React.FC<MyTicketsViewProps> = ({
 
                         {batch.status === 'win' ? (
                           <div className="text-right">
-                            <span className="text-[10px] text-emerald-400 block font-sans font-bold">Total Batch Prize Won</span>
-                            <span className="text-emerald-400 font-black text-base">₹{batch.totalWonAmount?.toLocaleString('en-IN')}</span>
+                            <span className="text-[10px] text-emerald-400 block font-sans font-bold">
+                              {isSuperCarTicket ? 'Prize Won (জয়ী অ্যামাউন্ট)' : 'Total Batch Prize Won'}
+                            </span>
+                            <span className="text-emerald-400 font-black text-base sm:text-lg">
+                              ₹{(batch.totalWonAmount ?? (firstTkt as any).winAmount ?? 0).toLocaleString('en-IN')}
+                            </span>
+                            {isSuperCarTicket && (
+                              <span className="text-[9px] text-emerald-300/90 block font-sans font-semibold">
+                                {firstTkt.walletType === 'bonus' ? '🎁 বোনাস' : '💰 মেইন'} ওয়ালেটে ক্রেডিট হয়েছে (নো রিফান্ড)
+                              </span>
+                            )}
                           </div>
                         ) : (
                           <div className="text-right">

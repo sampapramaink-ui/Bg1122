@@ -1,4 +1,5 @@
 import { SuperCarInfo, SuperCarColor, SuperCarDrawIssue, SuperCarConfig, PurchasedTicket } from '../types';
+import { calculateSuperCarLiveBettingStats, SuperCarLivePoolData } from './supercarBettingEngine';
 import redCarImg from '../assets/images/red_ferrari_v12_supercar_1786381249141.jpg';
 import blackCarImg from '../assets/images/black_supercar_showroom_1786334137173.jpg';
 import yellowCarImg from '../assets/images/yellow_supercar_showroom_1786334154910.jpg';
@@ -166,7 +167,8 @@ export function getSuperCarSlotsPerDay(config?: SuperCarConfig): number {
 export function getSuperCarDailySlots(
   targetDate: Date = new Date(),
   pastDraws: SuperCarDrawIssue[] = [],
-  config: SuperCarConfig = DEFAULT_SUPERCAR_CONFIG
+  config: SuperCarConfig = DEFAULT_SUPERCAR_CONFIG,
+  allTickets?: PurchasedTicket[]
 ): SuperCarSlotItem[] {
   const intervalMinutes = config.drawIntervalMinutes || 10;
 
@@ -227,20 +229,17 @@ export function getSuperCarDailySlots(
     const matchedDraw = pastDraws.find((d) => {
       if (!d) return false;
       if (d.issueId === issueId || d.id === issueId) return true;
-      if (d.issueId && d.issueId.includes(dateStr) && (d.drawIndex === slotNum || d.issueId.endsWith(`-${String(slotNum).padStart(2, '0')}`))) return true;
       return false;
     });
 
     // Check manual override slot winner if set in config for issueId or slotNum
     const manualSlotWinner = config.manualSlotWinners?.[issueId] || config.manualSlotWinners?.[slotNum];
-    
-    // Auto deterministic color if not manually set in auto mode:
-    // IMPORTANT: Yellow car is STRICTLY EXCLUDED from auto results! Only 'red' and 'black'.
-    const autoColors: SuperCarColor[] = ['red', 'black'];
-    const autoColor = autoColors[(slotNum * 7 + Number(dateStr)) % 2];
 
-    // Guarantee winningCar for all completed slots: matched draw > manual override > auto deterministic color
-    const winningCar = matchedDraw?.winningCar || manualSlotWinner || (status === 'completed' ? (config.resultMode === 'manual' && config.manualWinner ? config.manualWinner : autoColor) : undefined);
+    // Authoritative winning car: matched draw > manual override > House Edge calculation
+    let winningCar: SuperCarColor | undefined = matchedDraw?.winningCar || manualSlotWinner;
+    if (!winningCar && status === 'completed') {
+      winningCar = getWinningCarForSlot(slotNum, issueId, pastDraws, config, allTickets);
+    }
 
     slots.push({
       slotNum,
@@ -351,14 +350,19 @@ export function sortSuperCarSlotsSmart(slots: SuperCarSlotItem[]): SuperCarSlotI
 
 /**
  * Returns winning car for a specific slot and issue ID.
- * IMPORTANT: Yellow car is STRICTLY EXCLUDED from auto mode!
- * Yellow car can ONLY win if manually set by Admin.
+ * Priority hierarchy:
+ * 1. Admin manual override in config (instant)
+ * 2. Saved completed draw in pastDraws / Firestore (instant)
+ * 3. 0-second auto-calculation: House Edge least bet & empty spot protection (House never loses)
+ * 4. Deterministic fair rotation across all 3 cars if no bets were placed
  */
 export function getWinningCarForSlot(
   slotNum: number,
   issueId: string,
   pastDraws: SuperCarDrawIssue[] = [],
-  config?: SuperCarConfig
+  config?: SuperCarConfig,
+  currentTickets?: PurchasedTicket[],
+  livePoolData?: SuperCarLivePoolData
 ): SuperCarColor {
   if (config?.resultMode === 'manual' && config?.manualWinner) {
     return config.manualWinner;
@@ -367,20 +371,26 @@ export function getWinningCarForSlot(
   if (manualSlotWinner) {
     return manualSlotWinner;
   }
+  // Exact issue match only (prevents matching old draws from previous days)
   const matchedDraw = pastDraws.find((d) => {
     if (!d) return false;
     if (d.issueId === issueId || d.id === issueId) return true;
-    if (d.issueId && (d.drawIndex === slotNum || d.issueId.endsWith(`-${String(slotNum).padStart(2, '0')}`))) return true;
     return false;
   });
   if (matchedDraw?.winningCar) {
     return matchedDraw.winningCar;
   }
-  // Auto mode fallback: ONLY Red and Black (Yellow never wins automatically)
-  const autoColors: SuperCarColor[] = ['red', 'black'];
-  const dateMatch = issueId.match(/CAR-(\d{8})/);
-  const dateNum = dateMatch && dateMatch[1] ? Number(dateMatch[1]) : 20260913;
-  return autoColors[(slotNum * 7 + dateNum) % 2];
+
+  // 0-second automatic winner calculation with House Edge & Empty Spot Protection
+  // Uses calculateSuperCarLiveBettingStats as the SINGLE source of truth for both Admin and Player
+  const stats = calculateSuperCarLiveBettingStats(
+    slotNum,
+    issueId,
+    currentTickets || [],
+    config || DEFAULT_SUPERCAR_CONFIG,
+    livePoolData
+  );
+  return stats.calculatedWinner;
 }
 
 /**
@@ -711,7 +721,7 @@ export function groupTicketsByBatch(tickets: PurchasedTicket[]): GroupedTicketBa
         tickets: [t],
         quantity: 1,
         totalPrice: t.price || 0,
-        totalWonAmount: t.wonAmount || 0,
+        totalWonAmount: t.wonAmount ?? (t as any).winAmount ?? 0,
         purchaseDate: t.purchaseDate,
         purchaseTime: t.purchaseTime,
         createdAt: t.createdAt,
@@ -723,7 +733,7 @@ export function groupTicketsByBatch(tickets: PurchasedTicket[]): GroupedTicketBa
       existing.tickets.push(t);
       existing.quantity += 1;
       existing.totalPrice += (t.price || 0);
-      existing.totalWonAmount += (t.wonAmount || 0);
+      existing.totalWonAmount += (t.wonAmount ?? (t as any).winAmount ?? 0);
 
       if (t.status === 'win') existing.status = 'win';
       else if (existing.status !== 'win' && t.status === 'loss') existing.status = 'loss';

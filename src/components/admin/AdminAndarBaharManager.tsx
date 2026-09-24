@@ -98,10 +98,40 @@ export const AdminAndarBaharManager: React.FC = () => {
   const [savingChips, setSavingChips] = useState<boolean>(false);
   const [chipSaveSuccess, setChipSaveSuccess] = useState<boolean>(false);
 
+  // Real-Time Risk & Liability Analysis (Scoped to current round)
+  const currentRoundBets = useMemo(() => {
+    const curId = currentRoundId || universalTimeState?.roundDetails?.roundId;
+    if (!curId) return liveBets;
+    return liveBets.filter((b) => b.roundId === curId);
+  }, [liveBets, currentRoundId, universalTimeState?.roundDetails?.roundId]);
+
+  const riskAnalysis: AndarBaharRiskAnalysis = useMemo(() => {
+    return analyzeAndarBaharLiveBets(currentRoundBets, config);
+  }, [currentRoundBets, config]);
+
   // 1. Synchronized Universal 24/7 Game Clock Loop
   useEffect(() => {
     const timer = setInterval(() => {
-      const syncState = getUniversalAndarBaharTimeState(Date.now(), config);
+      const andarStakes = riskAnalysis?.outcomes?.andar?.straightBetAmount || 0;
+      const baharStakes = riskAnalysis?.outcomes?.bahar?.straightBetAmount || 0;
+      const totalStakes = andarStakes + baharStakes;
+
+      const activeForced = isManualOverrideEnabled && selectedForcedWinner !== 'random'
+        ? selectedForcedWinner
+        : (isAutoLowRiskActive && totalStakes > 0 && riskAnalysis.lowestRiskSide && riskAnalysis.lowestRiskSide !== 'random'
+            ? riskAnalysis.lowestRiskSide
+            : (config.manualForceWinner || 'random'));
+
+      const activeConfig: AndarBaharConfig = {
+        ...config,
+        liveBetsAndar: andarStakes,
+        liveBetsBahar: baharStakes,
+        manualForceWinner: (isManualOverrideEnabled && selectedForcedWinner !== 'random') ? selectedForcedWinner : 'random',
+        isManualOverride: isManualOverrideEnabled && selectedForcedWinner !== 'random',
+        autoLowRiskWinner: activeForced !== 'random' ? activeForced : undefined,
+      } as any;
+
+      const syncState = getUniversalAndarBaharTimeState(Date.now(), activeConfig);
       setUniversalTimeState(syncState);
       setCurrentRoundId(syncState.roundDetails.roundId);
       setRoundPhase(syncState.phase);
@@ -112,7 +142,7 @@ export const AdminAndarBaharManager: React.FC = () => {
     }, 250);
 
     return () => clearInterval(timer);
-  }, [config]);
+  }, [config, isManualOverrideEnabled, selectedForcedWinner, isAutoLowRiskActive, riskAnalysis]);
 
   // 2. Real-Time Firestore Listeners
   useEffect(() => {
@@ -206,17 +236,6 @@ export const AdminAndarBaharManager: React.FC = () => {
     };
   }, []);
 
-  // 3. Real-Time Risk & Liability Analysis (Scoped to current round)
-  const currentRoundBets = useMemo(() => {
-    const curId = universalTimeState?.roundDetails?.roundId;
-    if (!curId) return liveBets;
-    return liveBets.filter((b) => b.roundId === curId);
-  }, [liveBets, universalTimeState?.roundDetails?.roundId]);
-
-  const riskAnalysis: AndarBaharRiskAnalysis = useMemo(() => {
-    return analyzeAndarBaharLiveBets(currentRoundBets, config);
-  }, [currentRoundBets, config]);
-
   // Keep live state updated when Auto Low Risk is active
   useEffect(() => {
     if (isAutoLowRiskActive && !isManualOverrideEnabled) {
@@ -257,6 +276,28 @@ export const AdminAndarBaharManager: React.FC = () => {
         createdAt: new Date().toISOString(),
       };
       setDoc(doc(db, 'andar_bahar_rounds', rId), roundDoc, { merge: true }).catch(() => {});
+
+      // Automatically reset manual override after round completes, returning immediately to Auto Low Risk
+      if (isManualOverrideEnabled) {
+        setIsManualOverrideEnabled(false);
+        setSelectedForcedWinner('random');
+        setIsAutoLowRiskActive(true);
+        setDoc(doc(db, 'andar_bahar_live_state', 'current_round'), {
+          isManualOverride: false,
+          forcedWinner: 'random',
+          manualForceWinner: 'random',
+          manualForceTarget: 'random',
+          isAutoLowRiskActive: true,
+          updatedAt: new Date().toISOString(),
+        }, { merge: true }).catch(() => {});
+        setDoc(doc(db, 'game_settings', 'andar_bahar'), {
+          isManualOverride: false,
+          manualForceWinner: 'random',
+          manualForceTarget: 'random',
+          rtpMode: 'house_protect',
+          updatedAt: new Date().toISOString(),
+        }, { merge: true }).catch(() => {});
+      }
 
       // Auto clean up stale live bets from previous rounds
       getDocs(collection(db, 'andar_bahar_live_bets')).then((snap) => {
@@ -349,6 +390,7 @@ export const AdminAndarBaharManager: React.FC = () => {
         forcedWinner: target,
         manualForceWinner: target,
         manualForceTarget: target,
+        targetRoundId: currentRoundId,
         isAutoLowRiskActive: !isManual,
         updatedAt: new Date().toISOString(),
       }, { merge: true });

@@ -126,10 +126,14 @@ export const AdminDragonTigerManager: React.FC = () => {
         : (isAutoLowRiskActive && riskAnalysis.totalPot > 0 && riskAnalysis.lowestRiskSide && riskAnalysis.lowestRiskSide !== 'random'
             ? riskAnalysis.lowestRiskSide 
             : (config.manualForceWinner || 'random'));
-      const timeState = getUniversalDragonTigerTimeState(Date.now(), {
+      const activeConfig: DragonTigerConfig = {
         ...config,
         manualForceWinner: activeForced,
-      });
+        forcedWinner: activeForced,
+        isManualOverride: isManualOverrideEnabled && selectedForcedWinner !== 'random',
+        autoLowRiskWinner: activeForced !== 'random' ? activeForced : undefined,
+      } as any;
+      const timeState = getUniversalDragonTigerTimeState(Date.now(), activeConfig);
       setUniversalTimeState(timeState);
       setCurrentRoundId(timeState.roundDetails.roundId);
       setRoundPhase(timeState.phase);
@@ -275,12 +279,34 @@ export const AdminDragonTigerManager: React.FC = () => {
       };
       setDoc(doc(db, 'dragon_tiger_rounds', rId), roundDoc, { merge: true }).catch(() => {});
 
+      // Automatically reset manual override after round completes, returning immediately to Auto Low Risk
+      if (isManualOverrideEnabled) {
+        setIsManualOverrideEnabled(false);
+        setSelectedForcedWinner('random');
+        setIsAutoLowRiskActive(true);
+        setDoc(doc(db, 'dragon_tiger_live_state', 'current_round'), {
+          isManualOverride: false,
+          forcedWinner: 'random',
+          manualForceWinner: 'random',
+          manualForceTarget: 'random',
+          isAutoLowRiskActive: true,
+          updatedAt: new Date().toISOString(),
+        }, { merge: true }).catch(() => {});
+        setDoc(doc(db, 'game_settings', 'dragon_tiger'), {
+          isManualOverride: false,
+          manualForceWinner: 'random',
+          manualForceTarget: 'random',
+          rtpMode: 'house_protect',
+          updatedAt: new Date().toISOString(),
+        }, { merge: true }).catch(() => {});
+      }
+
       // Delete stale live bets for the finished round
       liveBets.filter(b => b.roundId === rId).forEach(b => {
         deleteDoc(doc(db, 'dragon_tiger_live_bets', b.id)).catch(() => {});
       });
     }
-  }, [universalTimeState, riskAnalysis, liveBets]);
+  }, [universalTimeState, riskAnalysis, liveBets, isManualOverrideEnabled]);
 
   // Handle Instant 0-second Bet Amount Limits (Min Bet / Max Bet)
   const handleUpdateBetLimits = async (minB: number, maxB: number) => {
@@ -361,6 +387,7 @@ export const AdminDragonTigerManager: React.FC = () => {
         forcedWinner: target,
         manualForceWinner: target,
         manualForceTarget: target,
+        targetRoundId: currentRoundId,
         isAutoLowRiskActive: !isManual,
         updatedAt: new Date().toISOString(),
       }, { merge: true });

@@ -42,29 +42,39 @@ export interface SuperCarLiveBettingStats {
     houseProfitMarginPercent: number;
   };
   houseEdgeTargetPercent: number; // 0% to 99.5%
-  calculatedWinner: SuperCarColor; // Strictly 'red' or 'black' (yellow ONLY if manual)
+  calculatedWinner: SuperCarColor; // Selected winner based on House Edge, lowest liability, and empty spot algorithm
   calculationReason: string;
   isManualOverride: boolean;
   manualWinnerColor?: SuperCarColor;
 }
 
+export interface SuperCarLivePoolData {
+  redBets?: number;
+  blackBets?: number;
+  yellowBets?: number;
+  redTickets?: number;
+  blackTickets?: number;
+  yellowTickets?: number;
+  totalPool?: number;
+}
+
 /**
  * Calculates live betting statistics and automatically determines the winning car
- * based on the configured House Edge (0.0% to 99.5%).
+ * based on the configured House Edge (0.0% to 99.5%) and Empty Spot / Least Bet protection.
  * 
- * STRICT ARCHITECTURAL RULES:
- * 1. YELLOW CAR NEVER WINS AUTOMATICALLY. Yellow can only win if manually set by Admin.
- * 2. The automatic engine compares Red vs Black liabilities:
- *    Whichever car yields higher House Profit (lower payout liability) is selected,
- *    guaranteeing maximum profitability and zero risk for the house.
- * 3. In the event of equal payouts or zero bets, a deterministic alternation between
- *    Red and Black is used.
+ * STRICT HOUSE INTEGRITY & USER REQUEST RULES:
+ * 1. If any car has ZERO bets (ফাঁকা / empty), declaring it the winner results in ₹0 payout
+ *    and guarantees 100% House Profit (House never loses).
+ * 2. If bets are placed, select the car that minimizes payout liability and user wager volume,
+ *    maximizing House Profit margin.
+ * 3. Works in 0 seconds with or without the Admin logged in (offline admin proof).
  */
 export function calculateSuperCarLiveBettingStats(
   slotNum: number,
   issueId: string,
   allTickets: PurchasedTicket[],
-  config: SuperCarConfig
+  config: SuperCarConfig,
+  livePoolData?: SuperCarLivePoolData
 ): SuperCarLiveBettingStats {
   const houseEdgeTargetPercent = Math.min(
     99.5,
@@ -149,6 +159,16 @@ export function calculateSuperCarLiveBettingStats(
     }
   }
 
+  // If external live pool data exists from real-time database, merge it to account for all concurrent players
+  if (livePoolData) {
+    if (typeof livePoolData.redBets === 'number') redBets = Math.max(redBets, livePoolData.redBets);
+    if (typeof livePoolData.blackBets === 'number') blackBets = Math.max(blackBets, livePoolData.blackBets);
+    if (typeof livePoolData.yellowBets === 'number') yellowBets = Math.max(yellowBets, livePoolData.yellowBets);
+    if (typeof livePoolData.redTickets === 'number') redTicketCount = Math.max(redTicketCount, livePoolData.redTickets);
+    if (typeof livePoolData.blackTickets === 'number') blackTicketCount = Math.max(blackTicketCount, livePoolData.blackTickets);
+    if (typeof livePoolData.yellowTickets === 'number') yellowTicketCount = Math.max(yellowTicketCount, livePoolData.yellowTickets);
+  }
+
   const totalPool = redBets + blackBets + yellowBets;
 
   // Potential payout liabilities
@@ -165,19 +185,16 @@ export function calculateSuperCarLiveBettingStats(
   const blackMargin = totalPool > 0 ? ((houseProfitBlack / totalPool) * 100) : 0;
   const yellowMargin = totalPool > 0 ? ((houseProfitYellow / totalPool) * 100) : 0;
 
-  // Check for Manual Override first
+  // Check for Manual Override strictly scoped to unique issueId
   let isManualOverride = false;
   let manualWinnerColor: SuperCarColor | undefined = undefined;
 
-  if (config.resultMode === 'manual' && config.manualWinner) {
+  if (config.resultMode === 'manual' && config.manualWinner && (!(config as any).manualTargetIssueId || (config as any).manualTargetIssueId === issueId)) {
     isManualOverride = true;
     manualWinnerColor = config.manualWinner;
   } else if (config.manualSlotWinners?.[issueId]) {
     isManualOverride = true;
     manualWinnerColor = config.manualSlotWinners[issueId];
-  } else if (config.manualSlotWinners?.[slotNum]) {
-    isManualOverride = true;
-    manualWinnerColor = config.manualSlotWinners[slotNum];
   }
 
   let calculatedWinner: SuperCarColor = 'red';
@@ -187,29 +204,52 @@ export function calculateSuperCarLiveBettingStats(
     calculatedWinner = manualWinnerColor;
     calculationReason = `Admin Manual Override: ${manualWinnerColor.toUpperCase()} CAR explicitly set by Administrator.`;
   } else {
-    // AUTOMATIC CALCULATION:
-    // YELLOW CAR NEVER WINS AUTOMATICALLY (only Red and Black).
-    // Pick the car between Red and Black that provides HIGHER house profit (lower liability).
+    // =========================================================================
+    // AUTOMATIC WINNER CALCULATION (ZERO-SECOND HOUSE EDGE & EMPTY SPOT ALGORITHM)
+    // =========================================================================
+    // Core Rules requested by Management:
+    // 1. If any car is EMPTY (zero bets / ফাঁকা), declaring it winner results in
+    //    ₹0 payout liability and secures 100% of the pool for the House.
+    // 2. Where bets are placed, select the car with the LOWEST payout liability
+    //    and LEAST betting volume, maximizing House Profit and preventing any loss.
+    // 3. If no bets are placed anywhere (totalPool === 0), use deterministic fair rotation.
 
-    if (totalPool === 0 || (redBets === 0 && blackBets === 0)) {
-      // Both zero bets or empty round: Deterministic fair alternation between Red and Black
-      const dateNum = Number(issueId.replace(/\D/g, '')) || 20260913;
-      calculatedWinner = (slotNum + dateNum) % 2 === 0 ? 'red' : 'black';
-      calculationReason = `No bets placed on Red/Black: Smooth deterministic rotation selected ${calculatedWinner.toUpperCase()} Car (Yellow car strictly excluded in auto mode).`;
-    } else if (houseProfitRed > houseProfitBlack) {
-      calculatedWinner = 'red';
-      calculationReason = `Red Car selected: Lower house payout liability (₹${redPayout.toLocaleString('en-IN')} vs ₹${blackPayout.toLocaleString('en-IN')}). Maximizes House Profit to ₹${houseProfitRed.toLocaleString('en-IN')} (${redMargin.toFixed(1)}% margin).`;
-    } else if (houseProfitBlack > houseProfitRed) {
-      calculatedWinner = 'black';
-      calculationReason = `Black Car selected: Lower house payout liability (₹${blackPayout.toLocaleString('en-IN')} vs ₹${redPayout.toLocaleString('en-IN')}). Maximizes House Profit to ₹${houseProfitBlack.toLocaleString('en-IN')} (${blackMargin.toFixed(1)}% margin).`;
+    const dateNum = Number(issueId.replace(/\D/g, '')) || 20260913;
+
+    if (totalPool === 0) {
+      // Empty round: deterministic fair alternation across all 3 cars
+      const colors: SuperCarColor[] = ['red', 'black', 'yellow'];
+      calculatedWinner = colors[(slotNum * 7 + dateNum) % 3];
+      calculationReason = `No bets placed in this round: Deterministic rotation selected ${calculatedWinner.toUpperCase()} Car. House liability is ₹0.`;
     } else {
-      // Exactly equal profit: pick the car with lower bets
-      if (redBets <= blackBets) {
-        calculatedWinner = 'red';
-        calculationReason = `Equal profit liability: Red Car chosen due to lower or equal wager volume (₹${redBets} vs ₹${blackBets}).`;
+      // Check for completely EMPTY cars (0 bets / ফাঁকা)
+      const emptyCars: { color: SuperCarColor; multiplier: number }[] = [];
+      if (redBets === 0) emptyCars.push({ color: 'red', multiplier: redMultiplier });
+      if (blackBets === 0) emptyCars.push({ color: 'black', multiplier: blackMultiplier });
+      if (yellowBets === 0) emptyCars.push({ color: 'yellow', multiplier: yellowMultiplier });
+
+      if (emptyCars.length > 0) {
+        // At least one car has 0 bets: declaring it winner gives ₹0 payout and 100% house profit!
+        const chosen = emptyCars[(slotNum + dateNum) % emptyCars.length];
+        calculatedWinner = chosen.color;
+        calculationReason = `ফাঁকা বাজি প্রটেকশন (Empty Bet Spot): No user bets placed on ${calculatedWinner.toUpperCase()} Car (₹0 bets). Declaring it winner secures ₹0 payout liability and 100% House Profit (₹${totalPool.toLocaleString('en-IN')}).`;
       } else {
-        calculatedWinner = 'black';
-        calculationReason = `Equal profit liability: Black Car chosen due to lower wager volume (₹${blackBets} vs ₹${redBets}).`;
+        // All cars have bets placed: select the car with MAXIMUM house profit (LOWEST payout liability)
+        const candidates = [
+          { color: 'red' as SuperCarColor, bets: redBets, payout: redPayout, profit: houseProfitRed, margin: redMargin },
+          { color: 'black' as SuperCarColor, bets: blackBets, payout: blackPayout, profit: houseProfitBlack, margin: blackMargin },
+          { color: 'yellow' as SuperCarColor, bets: yellowBets, payout: yellowPayout, profit: houseProfitYellow, margin: yellowMargin }
+        ];
+
+        // Sort primarily by highest house profit (lowest liability), then by lowest bet volume
+        candidates.sort((a, b) => {
+          if (b.profit !== a.profit) return b.profit - a.profit; // Highest profit first
+          return a.bets - b.bets; // Lowest bets first
+        });
+
+        const best = candidates[0];
+        calculatedWinner = best.color;
+        calculationReason = `কম বেটিং ও হাউস প্রফিট সুরক্ষা (Least Bet & House Profit Protection): ${best.color.toUpperCase()} Car selected with lowest payout liability (₹${best.payout.toLocaleString('en-IN')}) and least bet volume (₹${best.bets.toLocaleString('en-IN')}). Yields maximum House Profit of ₹${best.profit.toLocaleString('en-IN')} (${best.margin.toFixed(1)}% margin). House is 100% protected against losses.`;
       }
     }
   }

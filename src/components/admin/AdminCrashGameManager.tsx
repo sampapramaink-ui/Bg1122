@@ -78,10 +78,31 @@ export const AdminCrashGameManager: React.FC = () => {
     return synced.slice(0, 15);
   }, [universalTimeState?.roundIndex, recentRounds]);
 
+  // Real-Time Risk & Flight Curve Analysis
+  const riskAnalysis: CrashRiskAnalysis = useMemo(() => {
+    return analyzeCrashLiveBets(liveBets, config);
+  }, [liveBets, config]);
+
   // 1. Synchronized Universal 24/7 Crash Game Engine Loop
   useEffect(() => {
     const timer = setInterval(() => {
-      const syncState = getUniversalCrashTimeState(Date.now(), config);
+      const activeForced = isManualOverrideEnabled && typeof forcedCrashMultiplier === 'number'
+        ? forcedCrashMultiplier
+        : (isAutoLowRiskActive && riskAnalysis.totalBetsCount > 0 && typeof riskAnalysis.autoRecommendedCrashMultiplier === 'number'
+            ? riskAnalysis.autoRecommendedCrashMultiplier
+            : (config.manualForceNextMultiplier || null));
+
+      const activeConfig: CrashGameConfig = {
+        ...config,
+        manualForceNextMultiplier: activeForced,
+        forcedCrashMultiplier: activeForced,
+        isManualOverride: isManualOverrideEnabled && typeof forcedCrashMultiplier === 'number',
+        autoCrashMultiplier: (isAutoLowRiskActive && riskAnalysis.totalBetsCount > 0 && typeof riskAnalysis.autoRecommendedCrashMultiplier === 'number')
+          ? riskAnalysis.autoRecommendedCrashMultiplier
+          : undefined,
+      } as any;
+
+      const syncState = getUniversalCrashTimeState(Date.now(), activeConfig);
       setUniversalTimeState(syncState);
       setCurrentRoundId(syncState.roundDetails.roundId);
       setGamePhase(syncState.phase);
@@ -90,7 +111,7 @@ export const AdminCrashGameManager: React.FC = () => {
     }, 100);
 
     return () => clearInterval(timer);
-  }, [config]);
+  }, [config, isManualOverrideEnabled, forcedCrashMultiplier, isAutoLowRiskActive, riskAnalysis]);
 
   // 2. Real-Time Firestore Listeners
   useEffect(() => {
@@ -165,11 +186,6 @@ export const AdminCrashGameManager: React.FC = () => {
     };
   }, []);
 
-  // 3. Real-Time Risk & Flight Curve Analysis
-  const riskAnalysis: CrashRiskAnalysis = useMemo(() => {
-    return analyzeCrashLiveBets(liveBets, config);
-  }, [liveBets, config]);
-
   // Keep live state updated when Auto Low Risk is active
   useEffect(() => {
     if (isAutoLowRiskActive && !isManualOverrideEnabled && riskAnalysis.autoRecommendedCrashMultiplier) {
@@ -221,6 +237,7 @@ export const AdminCrashGameManager: React.FC = () => {
         isManualOverride: isManual,
         forcedCrashMultiplier: mult,
         manualForceNextMultiplier: mult,
+        targetRoundId: currentRoundId,
         isAutoLowRiskActive: !isManual,
         updatedAt: new Date().toISOString(),
       }, { merge: true });
@@ -320,8 +337,31 @@ export const AdminCrashGameManager: React.FC = () => {
         createdAt: new Date().toISOString(),
       };
       setDoc(doc(db, 'crash_rounds', rId), roundDoc, { merge: true }).catch(() => {});
+
+      // Automatically reset manual override after round crashes, returning immediately to Auto Low Risk
+      if (isManualOverrideEnabled) {
+        setIsManualOverrideEnabled(false);
+        setForcedCrashMultiplier(null);
+        setIsAutoLowRiskActive(true);
+        setDoc(doc(db, 'crash_live_state', 'current_round'), {
+          isManualOverride: false,
+          forcedCrashMultiplier: null,
+          manualForceNextMultiplier: null,
+          forceInstantCrash: false,
+          isAutoLowRiskActive: true,
+          updatedAt: new Date().toISOString(),
+        }, { merge: true }).catch(() => {});
+        setDoc(doc(db, 'game_settings', 'crash_game'), {
+          isManualOverride: false,
+          manualForceNextMultiplier: null,
+          forcedCrashMultiplier: null,
+          forceInstantCrash: false,
+          rtpMode: 'house_protect',
+          updatedAt: new Date().toISOString(),
+        }, { merge: true }).catch(() => {});
+      }
     }
-  }, [universalTimeState, riskAnalysis]);
+  }, [universalTimeState, riskAnalysis, isManualOverrideEnabled]);
 
   // Handle Instant 0-second Bet Amount Limits (Min Bet / Max Bet)
   const handleUpdateBetLimits = async (minB: number, maxB: number) => {

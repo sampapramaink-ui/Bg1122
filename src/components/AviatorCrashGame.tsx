@@ -50,9 +50,35 @@ export const AviatorCrashGame: React.FC<AviatorCrashGameProps> = ({
   const [currentMultiplier, setCurrentMultiplier] = useState<number>(initialCrashState.currentMultiplier);
   const [crashPoint, setCrashPoint] = useState<number>(initialCrashState.roundDetails.crashMultiplier);
   const [waitingCountdown, setWaitingCountdown] = useState<number>(initialCrashState.waitingCountdown);
-  const [roundHistory, setRoundHistory] = useState<number[]>(() => {
-    return getSyncedCrashHistory(initialCrashState.roundIndex, 30);
-  });
+  const [dbRounds, setDbRounds] = useState<CrashRound[]>([]);
+
+  // Real-time live Firestore listener for crash rounds history (0-second parity with Admin Panel)
+  useEffect(() => {
+    const qRounds = query(collection(db, 'crash_rounds'), limit(40));
+    const unsub = onSnapshot(qRounds, (snap) => {
+      const list: CrashRound[] = [];
+      snap.forEach((d) => list.push(d.data() as CrashRound));
+      list.sort((a, b) => (b.startTime || 0) - (a.startTime || 0));
+      setDbRounds(list);
+    }, (err) => console.warn('Crash rounds listener note:', err.message));
+    return () => unsub();
+  }, []);
+
+  // History reactively merged with latest Firestore round results (100% identical to Admin Panel)
+  const roundHistory: number[] = useMemo(() => {
+    const synced = getSyncedCrashHistory(roundNumber, 35);
+    if (!dbRounds || dbRounds.length === 0) return synced;
+    const dbMap = new Map<number, number>();
+    dbRounds.forEach(r => {
+      if (r.roundNumber && typeof r.crashMultiplier === 'number') {
+        dbMap.set(r.roundNumber, r.crashMultiplier);
+      }
+    });
+    return synced.map((defaultMult, idx) => {
+      const rNum = roundNumber - idx - 1;
+      return dbMap.get(rNum) ?? defaultMult;
+    });
+  }, [roundNumber, dbRounds]);
 
   // 3. Betting Panels State (Dual Panels like Spribe Aviator)
   // Panel 1
@@ -196,16 +222,25 @@ export const AviatorCrashGame: React.FC<AviatorCrashGameProps> = ({
     const unsubLiveState = onSnapshot(doc(db, 'crash_live_state', 'current_round'), (snap) => {
       if (snap.exists()) {
         const data = snap.data() as any;
-        const forcedM = data.isManualOverride && typeof data.forcedCrashMultiplier === 'number'
+        const isRoundMatch = !data.targetRoundId || data.targetRoundId === roundIdRef.current;
+        const forcedM = (data.isManualOverride && isRoundMatch && typeof data.forcedCrashMultiplier === 'number')
           ? data.forcedCrashMultiplier
-          : (typeof data.manualForceNextMultiplier === 'number' ? data.manualForceNextMultiplier : null);
+          : (data.isManualOverride && isRoundMatch && typeof data.manualForceNextMultiplier === 'number' ? data.manualForceNextMultiplier : null);
+        const autoLowRiskM = (!data.isManualOverride && data.isAutoLowRiskActive !== false && typeof data.autoCrashMultiplier === 'number')
+          ? data.autoCrashMultiplier
+          : null;
 
-        if (data.forceInstantCrash && gamePhaseRef.current === 'flying') {
+        if (data.forceInstantCrash && gamePhaseRef.current === 'flying' && isRoundMatch) {
           crashPointRef.current = currentMultRef.current;
           setCrashPoint(currentMultRef.current);
+          gamePhaseRef.current = 'crashed';
+          setGamePhase('crashed');
         } else if (forcedM !== null) {
           crashPointRef.current = forcedM;
           setCrashPoint(forcedM);
+        } else if (autoLowRiskM !== null) {
+          crashPointRef.current = autoLowRiskM;
+          setCrashPoint(autoLowRiskM);
         }
 
         const nextMin = data.minBet !== undefined ? Number(data.minBet) : undefined;
@@ -231,6 +266,7 @@ export const AviatorCrashGame: React.FC<AviatorCrashGameProps> = ({
             ...prev,
             manualForceNextMultiplier: forcedM,
             forcedCrashMultiplier: forcedM,
+            autoCrashMultiplier: autoLowRiskM,
             isManualOverride: !!data.isManualOverride,
             forceInstantCrash: !!data.forceInstantCrash,
             minBet: nextMin !== undefined ? nextMin : prev.minBet,
@@ -846,7 +882,13 @@ export const AviatorCrashGame: React.FC<AviatorCrashGameProps> = ({
   // Synchronized 24/7 Global Crash Game Engine (Synced across all players worldwide with 0 latency)
   useEffect(() => {
     const cycleInterval = setInterval(() => {
-      const syncState = getUniversalCrashTimeState(Date.now(), configRef.current);
+      const hasUserBet = bet1PlacedRef.current || bet2PlacedRef.current;
+      const effectiveConfig: CrashGameConfig = {
+        ...configRef.current,
+        hasLiveUserBets: hasUserBet,
+        liveBetsAmount: (bet1PlacedRef.current ? bet1AmountRef.current : 0) + (bet2PlacedRef.current ? bet2AmountRef.current : 0)
+      } as any;
+      const syncState = getUniversalCrashTimeState(Date.now(), effectiveConfig);
       const { roundIndex, roundDetails, phase, currentMultiplier: liveMult, waitingCountdown: countdown } = syncState;
       const curRoundId = roundDetails.roundId;
 
@@ -1070,7 +1112,41 @@ export const AviatorCrashGame: React.FC<AviatorCrashGameProps> = ({
             }
           }
 
-          setRoundHistory((prev) => [roundDetails.crashMultiplier, ...prev.slice(0, 40)]);
+          // Persist settled round and reset single-round manual overrides so next rounds calculate dynamically
+          setDoc(doc(db, 'crash_rounds', curRoundId), {
+            id: curRoundId,
+            roundNumber: roundDetails.roundNumber,
+            crashMultiplier: roundDetails.crashMultiplier,
+            flightDurationSeconds: roundDetails.flightDurationSeconds,
+            settledAt: new Date().toISOString()
+          }, { merge: true }).catch(() => {});
+
+          setDoc(doc(db, 'crash_live_state', 'current_round'), {
+            phase: 'crashed',
+            roundId: curRoundId,
+            crashMultiplier: roundDetails.crashMultiplier,
+            lastSettledResult: {
+              roundId: curRoundId,
+              crashMultiplier: roundDetails.crashMultiplier,
+              settledAt: new Date().toISOString()
+            },
+            // Reset manual override flags
+            isManualOverride: false,
+            forcedCrashMultiplier: null,
+            manualForceNextMultiplier: null,
+            forceInstantCrash: false,
+            updatedAt: new Date().toISOString()
+          }, { merge: true }).catch(() => {});
+
+          // Guarantee game_settings reverts to Auto Low-Risk even if Admin is offline
+          setDoc(doc(db, 'game_settings', 'crash_game'), {
+            isManualOverride: false,
+            manualForceNextMultiplier: null,
+            forcedCrashMultiplier: null,
+            forceInstantCrash: false,
+            rtpMode: 'house_protect',
+            updatedAt: new Date().toISOString()
+          }, { merge: true }).catch(() => {});
         }
       }
     }, 40);

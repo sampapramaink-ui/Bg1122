@@ -77,10 +77,9 @@ const WHEEL_NUMBERS = [
 const RED_NUMBERS = new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]);
 const BLACK_NUMBERS = new Set([2, 4, 6, 8, 10, 11, 13, 15, 17, 20, 22, 24, 26, 28, 29, 31, 33, 35]);
 
-const CHIP_VALUES = [10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 25000, 50000, 100000, 500000];
+const CHIP_VALUES = [20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 25000, 50000, 100000, 500000];
 
 const getChipGradient = (val: number) => {
-  if (val <= 10) return 'from-amber-600 via-orange-500 to-amber-700 border-amber-300 text-white';
   if (val <= 20) return 'from-teal-600 via-emerald-600 to-teal-700 border-teal-300 text-white';
   if (val <= 50) return 'from-sky-600 via-blue-600 to-indigo-700 border-sky-300 text-white';
   if (val <= 100) return 'from-amber-400 via-yellow-400 to-amber-500 border-yellow-100 text-slate-950 font-black';
@@ -124,7 +123,7 @@ export const LiveRoulette: React.FC<LiveRouletteProps> = ({
   onBigWin
 }) => {
   const initialTime = getUniversalRouletteTimeState(Date.now());
-  const [selectedChip, setSelectedChip] = useState<number>(50);
+  const [selectedChip, setSelectedChip] = useState<number>(20);
   const [showChipPicker, setShowChipPicker] = useState<boolean>(false);
   const [customChipAmount, setCustomChipAmount] = useState<string>('');
   const [bets, setBets] = useState<PlacedBet[]>([]);
@@ -151,7 +150,7 @@ export const LiveRoulette: React.FC<LiveRouletteProps> = ({
     const list = getContinuous24x7History(20, undefined, Date.now());
     return list.map(item => ({
       number: item.winningNumber,
-      multiplier: item.multiplier && item.multiplier > 36 ? item.multiplier : undefined,
+      multiplier: item.multiplier && item.multiplier > 30 ? item.multiplier : undefined,
       roundId: item.roundId
     }));
   });
@@ -468,20 +467,35 @@ export const LiveRoulette: React.FC<LiveRouletteProps> = ({
     // 1. High Priority: Admin Explicit Manual Override for this Round
     const isManualActive = Boolean(
       (liveRound?.isManualOverride && typeof liveRound?.manualWinningNumber === 'number' && liveRound.manualWinningNumber >= 0 && liveRound.manualWinningNumber <= 36 && (!liveRound?.targetRoundId || liveRound.targetRoundId === targetRoundId)) ||
-      (currentCfg?.manualNextNumberActive && typeof currentCfg?.manualNextNumber === 'number' && currentCfg.manualNextNumber >= 0 && currentCfg.manualNextNumber <= 36)
+      (currentCfg?.manualNextNumberActive && typeof currentCfg?.manualNextNumber === 'number' && currentCfg.manualNextNumber >= 0 && currentCfg.manualNextNumber <= 36 && (!(currentCfg as any)?.manualTargetRoundId || (currentCfg as any).manualTargetRoundId === targetRoundId))
     );
 
     if (isManualActive) {
-      if (liveRound?.isManualOverride && typeof liveRound?.manualWinningNumber === 'number' && liveRound.manualWinningNumber >= 0 && liveRound.manualWinningNumber <= 36) {
+      if (liveRound?.isManualOverride && typeof liveRound?.manualWinningNumber === 'number' && liveRound.manualWinningNumber >= 0 && liveRound.manualWinningNumber <= 36 && (!liveRound?.targetRoundId || liveRound.targetRoundId === targetRoundId)) {
         return liveRound.manualWinningNumber;
       }
-      if (currentCfg?.manualNextNumberActive && typeof currentCfg?.manualNextNumber === 'number' && currentCfg.manualNextNumber >= 0 && currentCfg.manualNextNumber <= 36) {
+      if (currentCfg?.manualNextNumberActive && typeof currentCfg?.manualNextNumber === 'number' && currentCfg.manualNextNumber >= 0 && currentCfg.manualNextNumber <= 36 && (!(currentCfg as any)?.manualTargetRoundId || (currentCfg as any).manualTargetRoundId === targetRoundId)) {
         return currentCfg.manualNextNumber;
       }
     }
 
-    // 2. High Priority: Admin / Server Synced Predetermined or Recommended Low-Risk Pocket for this round
+    // Determine current lightning numbers for this round
+    const currentLightningList: LightningMultiplier[] = (
+      liveRound?.manualLightningNumbers && liveRound.manualLightningNumbers.length > 0
+        ? liveRound.manualLightningNumbers
+        : (lightningNumbers && lightningNumbers.length > 0
+            ? lightningNumbers
+            : getSyncedLightningMultipliers(targetRoundId || roundIndex))
+    );
+    const lightningNumSet = new Set<number>(currentLightningList.map(l => l.number));
+
+    const placedBets = betsRef.current || [];
+    const isUserBetting = placedBets.length > 0;
+
+    // 2. Server Synced Predetermined or Recommended Low-Risk Pocket for this round
+    // CRITICAL: When user is betting, never pick a lightning number!
     if (
+      !isUserBetting &&
       liveRound && 
       liveRound.roundId === targetRoundId &&
       typeof liveRound.predeterminedWinningNumber === 'number' &&
@@ -492,6 +506,7 @@ export const LiveRoulette: React.FC<LiveRouletteProps> = ({
     }
 
     if (
+      !isUserBetting &&
       liveRound &&
       liveRound.roundId === targetRoundId &&
       typeof liveRound.recommendedLowRiskNumber === 'number' &&
@@ -503,14 +518,8 @@ export const LiveRoulette: React.FC<LiveRouletteProps> = ({
     }
 
     // 3. Autonomous 24x7 Auto Low-Risk & RTP House Edge Protection Engine
-    const rtp = typeof currentCfg?.rtpPercentage === 'number' ? currentCfg.rtpPercentage : 97.3;
-    const houseEdge = typeof currentCfg?.houseEdgePercentage === 'number' ? currentCfg.houseEdgePercentage : Math.max(0, 100 - rtp);
-    const rtpMode = currentCfg?.rtpMode || 'european_standard';
-    const isHouseProtect = rtpMode === 'house_protection' || rtpMode === 'house_protect';
-
-    const placedBets = betsRef.current;
-    const liveBetItems: RouletteLiveBetItem[] = (placedBets || []).map(b => {
-      const mult = b.type.kind === 'number' ? 36 : b.type.kind === 'dozen' || b.type.kind === 'column' ? 3 : 2;
+    const liveBetItems: RouletteLiveBetItem[] = placedBets.map(b => {
+      const mult = b.type.kind === 'number' ? 30 : b.type.kind === 'dozen' || b.type.kind === 'column' ? 3 : 2;
       return {
         id: b.id,
         roundId: targetRoundId || 'HLR-LIVE',
@@ -525,16 +534,26 @@ export const LiveRoulette: React.FC<LiveRouletteProps> = ({
       };
     });
 
-    const liability = calculateAllNumbersLiability(liveBetItems, targetRoundId || roundIndex);
+    const liability = calculateAllNumbersLiability(
+      liveBetItems, 
+      targetRoundId || roundIndex,
+      { lightningNumbers: Array.from(lightningNumSet) }
+    );
 
-    // House edge trigger probability dynamically driven by Admin RTP % (0% to 99.5%)
-    const triggersHouseEdge = isHouseProtect || houseEdge >= 100 || rtp <= 0 || (Math.random() * 100 < houseEdge);
-
-    if (triggersHouseEdge) {
-      return liability.lowestRiskNumber;
+    // 0-second latency House Edge Protection:
+    // When real bets are active, house picks lowest liability pocket guaranteeing house profit AND strictly excluding lightning numbers
+    if (isUserBetting || liability.totalPot > 0) {
+      let chosenNum = liability.lowestRiskNumber;
+      if (lightningNumSet.has(chosenNum)) {
+        const safeNonLightning = liability.numberSummaries
+          .filter(s => !lightningNumSet.has(s.number))
+          .sort((a, b) => b.netHouseProfit - a.netHouseProfit);
+        chosenNum = safeNonLightning[0]?.number ?? (chosenNum === 0 ? 1 : 0);
+      }
+      return chosenNum;
     }
 
-    // Standard RTP allows player a natural chance with deterministic sync
+    // When no bets are placed, natural deterministic round outcome
     return getSyncedRoundDeterministicWinNumber(targetRoundId || roundIndex);
   };
 
@@ -586,7 +605,7 @@ export const LiveRoulette: React.FC<LiveRouletteProps> = ({
             detail: String(b.type.value),
             amount: b.amount,
             isWin: false,
-            multiplier: b.type.kind === 'number' ? '36x - 500x' : b.type.kind === 'dozen' || b.type.kind === 'column' ? '3x' : '2x',
+            multiplier: b.type.kind === 'number' ? '30x - 500x' : b.type.kind === 'dozen' || b.type.kind === 'column' ? '3x' : '2x',
             payout: 0,
             outcomeProof: 'Round in progress'
           };
@@ -860,7 +879,7 @@ export const LiveRoulette: React.FC<LiveRouletteProps> = ({
     let totalWin = 0;
     const isEven = targetWinNum !== 0 && targetWinNum % 2 === 0;
     const isOdd = targetWinNum !== 0 && targetWinNum % 2 !== 0;
-    const straightMultiplier = luckyHit ? luckyHit.multiplier : 36;
+    const straightMultiplier = luckyHit ? luckyHit.multiplier : 30;
 
     const resolvedBetsBreakdown = currentPlacedBets.map((bet) => {
       let spotName = bet.label;
@@ -877,7 +896,7 @@ export const LiveRoulette: React.FC<LiveRouletteProps> = ({
 
       if (bet.type.kind === 'number' && bet.type.value === targetWinNum) {
         isWin = true;
-        spotMultiplier = luckyHit ? `⚡ ${luckyHit.multiplier}x (Lightning)` : '36x';
+        spotMultiplier = luckyHit ? `⚡ ${luckyHit.multiplier}x (Lightning)` : '30x';
         spotPayout = bet.amount * straightMultiplier;
       } else if (bet.type.kind === 'color' && bet.type.value === color) {
         isWin = true;
@@ -974,6 +993,29 @@ export const LiveRoulette: React.FC<LiveRouletteProps> = ({
           settledAt: new Date().toISOString(),
           timestamp: new Date().toLocaleTimeString('en-IN')
         },
+        // Reset single-round manual override so subsequent rounds calculate dynamically
+        isManualOverride: false,
+        manualWinningNumber: null,
+        manualNextNumber: null,
+        manualNextNumberActive: false,
+        predeterminedWinningNumber: null,
+        updatedAt: new Date().toISOString()
+      }, { merge: true }).catch(() => {});
+
+      // Clear in config as well
+      setDoc(doc(db, 'roulette_config', 'main'), {
+        manualNextNumberActive: false,
+        isManualOverride: false,
+        manualWinningNumber: null,
+        updatedAt: new Date().toISOString()
+      }, { merge: true }).catch(() => {});
+
+      // Guarantee game_settings reverts to Auto Low-Risk even if Admin is offline
+      setDoc(doc(db, 'game_settings', 'roulette'), {
+        manualNextNumberActive: false,
+        manualForceWinner: null,
+        manualWinningNumber: null,
+        rtpMode: 'house_protect',
         updatedAt: new Date().toISOString()
       }, { merge: true }).catch(() => {});
 
@@ -1058,7 +1100,7 @@ export const LiveRoulette: React.FC<LiveRouletteProps> = ({
         title: `হিন্দি লাইটনিং রুলেট জয়ী!`,
         subtitle: `LIGHTNING ROULETTE (${targetWinNum} ${color.toUpperCase()})`,
         amount: totalWin,
-        multiplier: luckyHit ? `${luckyHit.multiplier}x` : '36x',
+        multiplier: luckyHit ? `${luckyHit.multiplier}x` : '30x',
         rouletteNumber: targetWinNum,
         rouletteColor: color as 'red' | 'black' | 'green',
         drawOrRoundId: targetRoundId
@@ -1179,6 +1221,13 @@ export const LiveRoulette: React.FC<LiveRouletteProps> = ({
       return;
     }
 
+    const effectiveMinBet = Math.max(20, rouletteConfig.minBet || 20);
+    if (selectedChip < effectiveMinBet) {
+      soundFx.playError();
+      alert(`Minimum bet per spot is ₹${effectiveMinBet}.`);
+      return;
+    }
+
     if (totalBetAmount + selectedChip > (rouletteConfig.maxBet || 10000000)) {
       alert(`Maximum bet limit per round is ₹${(rouletteConfig.maxBet || 10000000).toLocaleString('en-IN')}.`);
       return;
@@ -1212,7 +1261,7 @@ export const LiveRoulette: React.FC<LiveRouletteProps> = ({
     // Immediately write to Firestore roulette_live_bets for real-time admin monitoring
     try {
       const betSpotKey = `RB_${roundId}_${user.id}_${type.kind}_${type.value}`;
-      const potentialMult = type.kind === 'number' ? 36 : type.kind === 'dozen' || type.kind === 'column' ? 3 : 2;
+      const potentialMult = type.kind === 'number' ? 30 : type.kind === 'dozen' || type.kind === 'column' ? 3 : 2;
       
       setDoc(doc(db, 'roulette_live_bets', betSpotKey), {
         id: betSpotKey,
@@ -1289,7 +1338,7 @@ export const LiveRoulette: React.FC<LiveRouletteProps> = ({
     try {
       doubled.forEach((b) => {
         const betSpotKey = `RB_${roundId}_${user.id}_${b.type.kind}_${b.type.value}`;
-        const potentialMult = b.type.kind === 'number' ? 36 : b.type.kind === 'dozen' || b.type.kind === 'column' ? 3 : 2;
+        const potentialMult = b.type.kind === 'number' ? 30 : b.type.kind === 'dozen' || b.type.kind === 'column' ? 3 : 2;
         setDoc(doc(db, 'roulette_live_bets', betSpotKey), {
           amount: b.amount,
           potentialWin: b.amount * potentialMult,
@@ -1314,7 +1363,7 @@ export const LiveRoulette: React.FC<LiveRouletteProps> = ({
     try {
       repeated.forEach((b) => {
         const betSpotKey = `RB_${roundId}_${user.id}_${b.type.kind}_${b.type.value}`;
-        const potentialMult = b.type.kind === 'number' ? 36 : b.type.kind === 'dozen' || b.type.kind === 'column' ? 3 : 2;
+        const potentialMult = b.type.kind === 'number' ? 30 : b.type.kind === 'dozen' || b.type.kind === 'column' ? 3 : 2;
         setDoc(doc(db, 'roulette_live_bets', betSpotKey), {
           id: betSpotKey,
           roundId,
@@ -1570,7 +1619,7 @@ export const LiveRoulette: React.FC<LiveRouletteProps> = ({
           {recentHistory.map((item, idx) => {
             const col = getNumberColor(item.number);
             const isNewest = idx === 0;
-            const hasMult = Boolean(item.multiplier && item.multiplier > 36);
+            const hasMult = Boolean(item.multiplier && item.multiplier > 30);
             return (
               <div
                 key={`${item.number}_${idx}`}
@@ -1732,7 +1781,7 @@ export const LiveRoulette: React.FC<LiveRouletteProps> = ({
 
           {/* Quick-Switch Chips */}
           <div className="flex items-center gap-1">
-            {[10, 50, 100, 500, 1000].map(val => (
+            {[20, 50, 100, 500, 1000].map(val => (
               <button
                 key={val}
                 onClick={() => { soundFx.playCoin(); setSelectedChip(val); }}
@@ -2150,7 +2199,7 @@ export const LiveRoulette: React.FC<LiveRouletteProps> = ({
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-400 font-black text-sm">₹</span>
                   <input
                     type="number"
-                    min={rouletteConfig.minBet || 10}
+                    min={rouletteConfig.minBet || 20}
                     max={rouletteConfig.maxBet || 10000000}
                     value={customChipAmount}
                     onChange={(e) => setCustomChipAmount(e.target.value)}
@@ -2161,7 +2210,7 @@ export const LiveRoulette: React.FC<LiveRouletteProps> = ({
                 <button
                   onClick={() => {
                     const parsed = parseInt(customChipAmount, 10);
-                    if (!isNaN(parsed) && parsed >= (rouletteConfig.minBet || 10)) {
+                    if (!isNaN(parsed) && parsed >= (rouletteConfig.minBet || 20)) {
                       if (parsed > (rouletteConfig.maxBet || 10000000)) {
                         alert(`Maximum bet limit is ₹${(rouletteConfig.maxBet || 10000000).toLocaleString('en-IN')}`);
                         return;
@@ -2170,7 +2219,7 @@ export const LiveRoulette: React.FC<LiveRouletteProps> = ({
                       setSelectedChip(parsed);
                       setShowChipPicker(false); // AUTO-CLOSE INSTANTLY
                     } else {
-                      alert(`Please enter a valid amount (Minimum ₹${rouletteConfig.minBet || 10})`);
+                      alert(`Please enter a valid amount (Minimum ₹${rouletteConfig.minBet || 20})`);
                     }
                   }}
                   className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-lg shadow-md active:scale-95 cursor-pointer shrink-0 transition-all"
@@ -2370,7 +2419,7 @@ export const LiveRoulette: React.FC<LiveRouletteProps> = ({
                       <td className="py-2 text-slate-400">{h.roundId}</td>
                       <td className="py-2 font-bold">{h.number}</td>
                       <td className="py-2 uppercase text-[10px]">{h.color}</td>
-                      <td className="py-2 text-amber-400 font-bold">{h.multiplier ? `${h.multiplier}x ⚡` : '36x'}</td>
+                      <td className="py-2 text-amber-400 font-bold">{h.multiplier ? `${h.multiplier}x ⚡` : '30x'}</td>
                       <td className="py-2 text-right text-slate-400 text-[10px]">{h.timestamp}</td>
                     </tr>
                   ))}

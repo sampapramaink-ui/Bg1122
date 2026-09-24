@@ -125,6 +125,8 @@ export const DragonTigerGame: React.FC<DragonTigerGameProps> = ({
   const [gamePhase, setGamePhase] = useState<'betting' | 'dealing' | 'completed'>(initialTimeState.phase);
   const [countdown, setCountdown] = useState<number>(initialTimeState.countdown);
   const [roundId, setRoundId] = useState<string>(initialTimeState.roundDetails.roundId);
+  const roundIdRef = useRef<string>(initialTimeState.roundDetails.roundId);
+  roundIdRef.current = roundId;
   const [roundStartTime, setRoundStartTime] = useState<number>(initialTimeState.roundStartTimeMs);
 
   // 3. Card States
@@ -239,19 +241,58 @@ export const DragonTigerGame: React.FC<DragonTigerGameProps> = ({
 
   // 9. Bead Road & Roadmap History
   const [roundIndex, setRoundIndex] = useState<number>(() => getUniversalDragonTigerTimeState().roundIndex);
-  const [beadRoad, setBeadRoad] = useState<BeadRecord[]>(() => {
-    const curIdx = getUniversalDragonTigerTimeState().roundIndex;
-    const history = getSyncedDragonTigerBeadRoad(curIdx, 30);
-    return history.map(h => ({
+  const [recentRoundsFromDb, setRecentRoundsFromDb] = useState<DragonTigerRound[]>([]);
+
+  // Real-time live Firestore listener for rounds history (0-second parity with Admin Panel)
+  useEffect(() => {
+    const qRounds = query(collection(db, 'dragon_tiger_rounds'), limit(30));
+    const unsub = onSnapshot(qRounds, (snap) => {
+      const list: DragonTigerRound[] = [];
+      snap.forEach((d) => list.push(d.data() as DragonTigerRound));
+      list.sort((a, b) => (b.startTime || 0) - (a.startTime || 0));
+      setRecentRoundsFromDb(list);
+    }, (err) => console.warn('User rounds listener notice:', err.message));
+    return () => unsub();
+  }, []);
+
+  // Bead Road reactively merged with latest Firestore round results (100% identical to Admin Panel)
+  const beadRoad: BeadRecord[] = useMemo(() => {
+    const curIdx = roundIndex || getUniversalDragonTigerTimeState().roundIndex;
+    const synced = getSyncedDragonTigerBeadRoad(curIdx, 30);
+    const mapped: BeadRecord[] = synced.map(h => ({
       id: h.id,
       winner: h.winner,
       isSuitedTie: h.isSuitedTie,
       dragonRank: h.dragonRank,
-      dragonSuit: h.dragonSuit as any,
+      dragonSuit: (h as any).dragonSuit || 'hearts',
       tigerRank: h.tigerRank,
-      tigerSuit: h.tigerSuit as any,
+      tigerSuit: (h as any).tigerSuit || 'spades',
     })).reverse();
-  });
+
+    if (recentRoundsFromDb && recentRoundsFromDb.length > 0) {
+      const dbMap = new Map<string, DragonTigerRound>();
+      recentRoundsFromDb.forEach(r => {
+        const rId = r.id || (r as any).roundId;
+        if (rId && r.winningSide) dbMap.set(rId, r);
+      });
+      return mapped.map(s => {
+        const dbMatch = dbMap.get(s.id);
+        if (dbMatch && dbMatch.winningSide) {
+          return {
+            id: s.id,
+            winner: dbMatch.winningSide,
+            isSuitedTie: !!dbMatch.isSuitedTie,
+            dragonRank: dbMatch.dragonCard?.rank || s.dragonRank,
+            dragonSuit: dbMatch.dragonCard?.suit || s.dragonSuit,
+            tigerRank: dbMatch.tigerCard?.rank || s.tigerRank,
+            tigerSuit: dbMatch.tigerCard?.suit || s.tigerSuit,
+          };
+        }
+        return s;
+      });
+    }
+    return mapped;
+  }, [roundIndex, recentRoundsFromDb]);
 
   // 10. User Bet History
   const [myBetsHistory, setMyBetsHistory] = useState<DragonTigerBet[]>([]);
@@ -310,30 +351,6 @@ export const DragonTigerGame: React.FC<DragonTigerGameProps> = ({
       setSelectedChip(maxB);
     }
   }, [config.minBet, config.maxBet, config.chipValues]);
-
-  // Initial fetch of recent rounds from Firestore for real-time history
-  useEffect(() => {
-    const qRounds = query(collection(db, 'dragon_tiger_rounds'), orderBy('createdAt', 'desc'), limit(25));
-    getDocs(qRounds).then((snap) => {
-      if (!snap.empty) {
-        const records: BeadRecord[] = snap.docs.map((d) => {
-          const data = d.data() as DragonTigerRound;
-          return {
-            id: d.id,
-            winner: data.winningSide || 'dragon',
-            isSuitedTie: data.isSuitedTie || false,
-            dragonRank: data.dragonCard?.rank || 'K',
-            dragonSuit: data.dragonCard?.suit || 'hearts',
-            tigerRank: data.tigerCard?.rank || '7',
-            tigerSuit: data.tigerCard?.suit || 'spades',
-          };
-        });
-        // Oldest on left, newest on right
-        records.reverse();
-        setBeadRoad(records);
-      }
-    }).catch(() => {});
-  }, []);
 
   // Auto-scroll Bead Road to rightmost (newest) result
   useEffect(() => {
@@ -428,10 +445,8 @@ export const DragonTigerGame: React.FC<DragonTigerGameProps> = ({
           let rtpMode = prev.rtpMode;
 
           const candidate = data.forcedWinner || data.manualForceWinner || data.manualForceTarget;
-          if (data.isManualOverride && candidate && candidate !== 'random') {
-            forcedWinner = candidate;
-            rtpMode = 'manual_force_winner';
-          } else if (candidate && candidate !== 'random') {
+          const isRoundMatch = !data.targetRoundId || data.targetRoundId === roundIdRef.current;
+          if (data.isManualOverride && isRoundMatch && candidate && candidate !== 'random') {
             forcedWinner = candidate;
             rtpMode = 'manual_force_winner';
           } else if (data.isAutoLowRiskActive && data.autoLowRiskWinner && data.autoLowRiskWinner !== 'random') {
@@ -447,7 +462,7 @@ export const DragonTigerGame: React.FC<DragonTigerGameProps> = ({
             ...prev,
             manualForceWinner: forcedWinner,
             forcedWinner: forcedWinner,
-            isManualOverride: forcedWinner !== 'random',
+            isManualOverride: Boolean(data.isManualOverride && isRoundMatch && forcedWinner !== 'random'),
             rtpMode,
             minBet: data.minBet !== undefined ? Number(data.minBet) : prev.minBet,
             maxBet: data.maxBet !== undefined ? Number(data.maxBet) : prev.maxBet,
@@ -461,14 +476,19 @@ export const DragonTigerGame: React.FC<DragonTigerGameProps> = ({
       }
     }, () => {});
 
-    // Listen to table live bets across all connected players with 0-second latency
+    // Listen to table live bets across all connected players with 0-second latency (strictly scoped to active round)
     const unsubLiveBets = onSnapshot(collection(db, 'dragon_tiger_live_bets'), (snap) => {
       let dStakes = 0;
       let tStakes = 0;
       let tieStakes = 0;
       let stStakes = 0;
+      const curRId = roundIdRef.current;
       snap.forEach((d) => {
         const item = d.data();
+        // Disregard bets from past/other rounds
+        if (item.roundId && curRId && item.roundId !== curRId) {
+          return;
+        }
         const amt = Number(item.amount) || 0;
         if (item.side === 'dragon') dStakes += amt;
         else if (item.side === 'tiger') tStakes += amt;
@@ -596,6 +616,16 @@ export const DragonTigerGame: React.FC<DragonTigerGameProps> = ({
       setIsTigerCardRevealed(isTigerRevealed);
 
       if (phase === 'betting') {
+        // Continuous 0s synchronization: If user bets or admin sets force/auto-risk, update cards & winner immediately!
+        if (activeWinningSideRef.current !== roundDetails.winningSide) {
+          activeDragonCardRef.current = roundDetails.dragonCard;
+          activeTigerCardRef.current = roundDetails.tigerCard;
+          activeWinningSideRef.current = roundDetails.winningSide;
+          activeIsSuitedTieRef.current = roundDetails.isSuitedTie;
+          setDragonCard(roundDetails.dragonCard);
+          setTigerCard(roundDetails.tigerCard);
+        }
+
         if (curCountdown <= 4 && !spokenTriggersForRoundRef.current.has('final_seconds')) {
           spokenTriggersForRoundRef.current.add('final_seconds');
           const warnPhrase = getFinalSecondsPhrase(dealerLangRef.current);
@@ -777,18 +807,6 @@ export const DragonTigerGame: React.FC<DragonTigerGameProps> = ({
       }
     }, 2800);
 
-    // Append new bead to the RIGHT side of bead road
-    const newBeadRecord: BeadRecord = {
-      id: `bead_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
-      winner: outcome.winner,
-      isSuitedTie: outcome.isSuitedTie,
-      dragonRank: finalDCard.rank,
-      dragonSuit: finalDCard.suit,
-      tigerRank: finalTCard.rank,
-      tigerSuit: finalTCard.suit,
-    };
-    setBeadRoad((prev) => [...prev, newBeadRecord].slice(-45));
-
     const resolvedDtBreakdown = betsToProcess.map((b) => {
       const payoutRes = calculateDragonTigerPayout(b, outcome.winner, outcome.isSuitedTie, configRef.current);
       const isWin = payoutRes.wonAmount > 0;
@@ -888,6 +906,38 @@ export const DragonTigerGame: React.FC<DragonTigerGameProps> = ({
       createdAt: new Date().toISOString(),
     };
     setDoc(doc(db, 'dragon_tiger_rounds', currentRId), roundDoc).catch(() => {});
+
+    // Synchronize 0-second live outcome across user and admin panels, resetting single-round manual overrides
+    setDoc(doc(db, 'dragon_tiger_live_state', 'current_round'), {
+      phase: 'completed',
+      roundId: currentRId,
+      winningSide: outcome.winner,
+      isSuitedTie: outcome.isSuitedTie,
+      dragonCard: finalDCard,
+      tigerCard: finalTCard,
+      lastSettledResult: {
+        roundId: currentRId,
+        winningSide: outcome.winner,
+        isSuitedTie: outcome.isSuitedTie,
+        settledAt: new Date().toISOString(),
+      },
+      // Reset manual override flags so future rounds calculate dynamically via House Edge
+      isManualOverride: false,
+      forcedWinner: 'random',
+      manualForceWinner: 'random',
+      manualForceTarget: 'random',
+      updatedAt: new Date().toISOString()
+    }, { merge: true }).catch(() => {});
+
+    // Guarantee game_settings reverts to Auto Low-Risk even if Admin is offline
+    setDoc(doc(db, 'game_settings', 'dragon_tiger'), {
+      isManualOverride: false,
+      forcedWinner: 'random',
+      manualForceWinner: 'random',
+      manualForceTarget: 'random',
+      rtpMode: 'house_protect',
+      updatedAt: new Date().toISOString()
+    }, { merge: true }).catch(() => {});
   };
 
   // Place Bet Click

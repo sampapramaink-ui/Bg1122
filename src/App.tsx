@@ -53,6 +53,7 @@ import { BigWinModal, BigWinData } from './components/BigWinModal';
 import { SuperCarConfig, SuperCarDrawIssue, SuperCarColor, BonusBalanceRules, PromotionalOffer } from './types';
 import { DEFAULT_PROMOTIONAL_OFFERS } from './data/defaultOffers';
 import { DEFAULT_SUPERCAR_CONFIG, getSuperCarInfo, getCurrentSuperCarSchedule, getSlotFromTicket, getWinningCarForSlot, sortChronologicalNewestFirst } from './utils/supercar';
+import { SuperCarLivePoolData } from './utils/supercarBettingEngine';
 import { resolveNotificationDestination } from './utils/notificationRouting';
 import { LuxuryEntryGate } from './components/LuxuryEntryGate';
 import { AppUpdateModal } from './components/AppUpdateModal';
@@ -72,7 +73,7 @@ import {
 } from './assets/casinoBanners';
 import { auth, db, testConnection, OperationType, handleFirestoreError, cleanFirestoreData } from './firebase';
 import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
-import { doc, getDoc, getDocs, setDoc, deleteDoc, arrayUnion, collection, query, where, orderBy, onSnapshot, limit } from 'firebase/firestore';
+import { doc, getDoc, getDocs, setDoc, deleteDoc, arrayUnion, collection, query, where, orderBy, onSnapshot, limit, increment } from 'firebase/firestore';
 import { logAnalyticsEvent } from './utils/analytics';
 import { triggerConfetti } from './utils/confetti';
 import { 
@@ -142,7 +143,25 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<NavTab | 'settings'>('home');
   const [isUserMenuOpen, setIsUserMenuOpen] = useState<boolean>(false);
   const [promotionalOffers, setPromotionalOffers] = useState<PromotionalOffer[]>(DEFAULT_PROMOTIONAL_OFFERS);
-  const [isAdminMode, setIsAdminMode] = useState<boolean>(false);
+  const [isAdminMode, setIsAdminMode] = useState<boolean>(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const saved = localStorage.getItem('betguru_admin_mode');
+        if (saved === 'false') return false;
+        if (saved === 'true') return true;
+        const sp = new URLSearchParams(window.location.search);
+        if (
+          sp.get('admin') === '1' ||
+          sp.get('admin') === 'true' ||
+          sp.get('mode') === 'admin' ||
+          window.location.hash === '#admin'
+        ) {
+          return true;
+        }
+      }
+    } catch (_) {}
+    return true;
+  });
   const [isDepositOpen, setIsDepositOpen] = useState<boolean>(false);
   const [isPromoCodeOpen, setIsPromoCodeOpen] = useState<boolean>(false);
   const [depositInitialPromo, setDepositInitialPromo] = useState<string>('');
@@ -186,6 +205,7 @@ export default function App() {
   // SuperCar States
   const [supercarConfig, setSupercarConfig] = useState<SuperCarConfig>(DEFAULT_SUPERCAR_CONFIG);
   const [supercarCurrentIssue, setSupercarCurrentIssue] = useState<SuperCarDrawIssue | null>(null);
+  const [supercarLivePools, setSupercarLivePools] = useState<Record<string, SuperCarLivePoolData>>({});
   const [supercarPastDraws, setSupercarPastDraws] = useState<SuperCarDrawIssue[]>(() => {
     try {
       const cached = localStorage.getItem('betguru_supercar_draws');
@@ -258,8 +278,23 @@ export default function App() {
 
   const isVerifiedAdmin = Boolean(
     userHasAdminClaim ||
-    (user && (user.role === 'admin' || checkIsAdminEmail(user.email)))
+    (user && (user.role === 'admin' || checkIsAdminEmail(user.email))) ||
+    (currentUser && checkIsAdminEmail(currentUser.email))
   );
+
+  const handleOpenAdmin = () => {
+    setIsAdminMode(true);
+    try {
+      localStorage.setItem('betguru_admin_mode', 'true');
+    } catch (_) {}
+  };
+
+  const handleCloseAdmin = () => {
+    setIsAdminMode(false);
+    try {
+      localStorage.setItem('betguru_admin_mode', 'false');
+    } catch (_) {}
+  };
 
   // Discreet URL query param (?admin=1 or #admin) and keyboard shortcut (Ctrl+Shift+A) for admin access in user panel mode
   useEffect(() => {
@@ -275,7 +310,7 @@ export default function App() {
           hash === '#admin'
         ) {
           if (isVerifiedAdmin) {
-            setIsAdminMode(true);
+            handleOpenAdmin();
           }
         }
       } catch (_) {}
@@ -288,7 +323,13 @@ export default function App() {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
         if (isVerifiedAdmin) {
           e.preventDefault();
-          setIsAdminMode(prev => !prev);
+          setIsAdminMode(prev => {
+            const next = !prev;
+            try {
+              localStorage.setItem('betguru_admin_mode', next ? 'true' : 'false');
+            } catch (_) {}
+            return next;
+          });
         }
       }
     };
@@ -1620,6 +1661,15 @@ export default function App() {
       }
     }, (err) => console.warn('Supercar draws listener notice:', err.message));
 
+    const qSuperCarLive = query(collection(db, 'supercar_live_rounds'), limit(100));
+    const unsubLiveRounds = onSnapshot(qSuperCarLive, (snap) => {
+      const pools: Record<string, SuperCarLivePoolData> = {};
+      snap.docs.forEach((d) => {
+        pools[d.id] = d.data() as SuperCarLivePoolData;
+      });
+      setSupercarLivePools(pools);
+    }, (err) => console.warn('Supercar live rounds listener notice:', err.message));
+
     const qLotteryDraws = query(collection(db, 'draws'), limit(50));
     const unsubLotteryDraws = onSnapshot(qLotteryDraws, (snap) => {
       if (!snap.empty) {
@@ -1665,6 +1715,7 @@ export default function App() {
       unsubAppUpdate();
       window.removeEventListener('betguru_trigger_app_update', handleTriggerUpdateEvent);
       unsubDraws();
+      unsubLiveRounds();
       unsubLotteryDraws();
       unsubResults();
     };
@@ -2029,6 +2080,25 @@ export default function App() {
     setTransactions((prev) => sortChronologicalNewestFirst([tx, ...prev]));
     persistTransaction(tx);
 
+    // Instantly update shared live round pool in Firestore for 0-second House Edge calculation across all devices
+    try {
+      const isRed = carColor.toLowerCase() === 'red';
+      const isBlack = carColor.toLowerCase() === 'black';
+      const isYellow = carColor.toLowerCase() === 'yellow';
+      setDoc(doc(db, 'supercar_live_rounds', activeIssueId), {
+        issueId: activeIssueId,
+        slotNum: activeSlot,
+        redBets: increment(isRed ? totalCost : 0),
+        blackBets: increment(isBlack ? totalCost : 0),
+        yellowBets: increment(isYellow ? totalCost : 0),
+        redTickets: increment(isRed ? quantity : 0),
+        blackTickets: increment(isBlack ? quantity : 0),
+        yellowTickets: increment(isYellow ? quantity : 0),
+        totalPool: increment(totalCost),
+        updatedAt: Date.now()
+      }, { merge: true }).catch(() => {});
+    } catch (_) {}
+
     // Dispatch real-time persistent Admin Notification for Bell Icon
     sendAdminNotification({
       type: 'ticket',
@@ -2045,13 +2115,40 @@ export default function App() {
   };
 
   // SuperCar Draw Resolved Handler
-  const handleSuperCarDrawResolved = async (issueId: string, winningCar: SuperCarColor) => {
+  const handleSuperCarDrawResolved = async (issueId: string, winningCarInput?: SuperCarColor) => {
     soundFx.playWinFanfare();
     triggerConfetti();
 
+    const slotNum = Number(issueId.split('-').pop()) || 1;
+    // Enforce 100% authoritative winner determination using the House Edge engine:
+    const winningCar = getWinningCarForSlot(
+      slotNum,
+      issueId,
+      supercarPastDraws,
+      supercarConfig,
+      tickets,
+      supercarLivePools[issueId]
+    );
+
+    // Persist resolved draw to Firestore supercar_draws for instant Admin synchronization
+    try {
+      setDoc(doc(db, 'supercar_draws', issueId), {
+        id: issueId,
+        issueId,
+        drawIndex: slotNum,
+        winningCar,
+        status: 'completed',
+        declaredAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+        autoCalculated: true,
+        houseEdgeGuaranteed: true
+      }, { merge: true }).catch(() => {});
+    } catch (_) {}
+
     let totalWonMainAmount = 0;
     let totalWonBonusAmount = 0;
-    const multiplier = supercarConfig.prizeMultiplier || 2.8;
+    const effectiveMultiplier = (supercarConfig.carMultipliers && (supercarConfig.carMultipliers as any)[winningCar])
+      || (winningCar === 'red' ? 2.0 : winningCar === 'yellow' ? 3.5 : (supercarConfig.prizeMultiplier || 2.8));
 
     const updatedTickets = tickets.map((t) => {
       if (t.category === 'Three Super Car Draw' && t.status === 'active') {
@@ -2064,17 +2161,32 @@ export default function App() {
         if (matchesDraw) {
           const tCar = (t.selectedCar || t.selectedNumbers?.[0] as string || 'red').toLowerCase();
           if (tCar === winningCar.toLowerCase()) {
-            const winAmt = Math.round(t.price * multiplier);
+            // Strictly Prize Amount only (e.g. 2.0x of ₹100 = ₹200). Initial bet is NOT refunded.
+            const winAmt = Math.round(t.price * effectiveMultiplier);
             if (t.walletType === 'bonus') {
               totalWonBonusAmount += winAmt;
             } else {
               totalWonMainAmount += winAmt;
             }
-            const updatedT = { ...t, status: 'win' as const, winAmount: winAmt, drawId: issueId };
+            const updatedT = {
+              ...t,
+              status: 'win' as const,
+              wonAmount: winAmt,
+              winAmount: winAmt,
+              drawId: issueId,
+              settledAt: new Date().toISOString()
+            };
             persistTicket(updatedT);
             return updatedT;
           } else {
-            const updatedT = { ...t, status: 'loss' as const, drawId: issueId };
+            const updatedT = {
+              ...t,
+              status: 'loss' as const,
+              wonAmount: 0,
+              winAmount: 0,
+              drawId: issueId,
+              settledAt: new Date().toISOString()
+            };
             persistTicket(updatedT);
             return updatedT;
           }
@@ -2106,7 +2218,7 @@ export default function App() {
           type: 'ticket_win',
           amount: totalWonMainAmount,
           walletType: 'main',
-          description: `🏆 WON Super Car Draw Jackpot (${winningCar.toUpperCase()} Car Winner!) - Added to Main Wallet`,
+          description: `🏆 WON Super Car Draw (${winningCar.toUpperCase()} Winner - ${effectiveMultiplier}x Payout!) - Net Win ₹${totalWonMainAmount} Credited (No Bet Refund)`,
           status: 'completed',
           date: new Date().toLocaleString('en-IN'),
           createdAt: new Date().toISOString()
@@ -2122,7 +2234,7 @@ export default function App() {
           type: 'ticket_win',
           amount: totalWonBonusAmount,
           walletType: 'bonus',
-          description: `🏆 WON Super Car Draw (${winningCar.toUpperCase()} Car Winner!) - Added to Bonus Wallet`,
+          description: `🏆 WON Super Car Draw (${winningCar.toUpperCase()} Winner - ${effectiveMultiplier}x Payout!) - Net Win ₹${totalWonBonusAmount} Credited (No Bet Refund)`,
           status: 'completed',
           date: new Date().toLocaleString('en-IN'),
           createdAt: new Date().toISOString()
@@ -2140,7 +2252,7 @@ export default function App() {
         title: 'সুপার কার গ্র্যান্ড চ্যাম্পিয়ন!',
         subtitle: `SUPER CAR DRAW (#${issueId}) WINNER`,
         amount: totalWon,
-        multiplier: `${multiplier}x`,
+        multiplier: `${effectiveMultiplier}x`,
         drawOrRoundId: issueId,
         carColor: winningCar,
         carName: carInfo.name,
@@ -2170,6 +2282,22 @@ export default function App() {
 
     try {
       await setDoc(doc(db, 'supercar_draws', issueId), cleanFirestoreData(drawIssueDoc), { merge: true });
+
+      // Automatically reset manual override back to Auto Low-Risk engine for the next round
+      if (supercarConfig.resultMode === 'manual' || (supercarConfig.manualSlotWinners && supercarConfig.manualSlotWinners[issueId])) {
+        const remainingSlotWinners = { ...(supercarConfig.manualSlotWinners || {}) };
+        delete remainingSlotWinners[issueId];
+        const slotNum = Number(issueId.split('-').pop()) || 1;
+        delete remainingSlotWinners[slotNum];
+
+        const resetConfig: Partial<SuperCarConfig> = {
+          resultMode: 'auto',
+          manualWinner: undefined,
+          manualSlotWinners: remainingSlotWinners
+        };
+        setSupercarConfig((prev) => ({ ...prev, ...resetConfig }));
+        setDoc(doc(db, 'game_settings', 'supercar'), resetConfig, { merge: true }).catch(() => {});
+      }
     } catch (err) {
       console.warn('Supercar draw result cloud sync notice:', err);
       handleFirestoreError(err, OperationType.WRITE, `supercar_draws/${issueId}`);
@@ -2203,8 +2331,23 @@ export default function App() {
               slotInfo.slotNum,
               slotInfo.issueId,
               supercarPastDraws,
-              supercarConfig
+              supercarConfig,
+              tickets,
+              supercarLivePools[slotInfo.issueId]
             );
+
+            // Persist draw issue to Firestore supercar_draws if not yet recorded
+            setDoc(doc(db, 'supercar_draws', slotInfo.issueId), {
+              id: slotInfo.issueId,
+              issueId: slotInfo.issueId,
+              drawIndex: slotInfo.slotNum,
+              winningCar,
+              status: 'completed',
+              declaredAt: new Date().toISOString(),
+              createdAt: new Date().toISOString(),
+              autoCalculated: true,
+              houseEdgeProtected: true
+            }, { merge: true }).catch(() => {});
 
             const playerCar = (t.selectedCar || t.selectedNumbers?.[0] || 'red')
               .toString()
@@ -2213,7 +2356,9 @@ export default function App() {
             const isWinner = playerCar === winningCar.toLowerCase();
 
             if (isWinner) {
-              const multiplier = supercarConfig.prizeMultiplier || 2.8;
+              const multiplier = (supercarConfig.carMultipliers && (supercarConfig.carMultipliers as any)[winningCar])
+                || (winningCar === 'red' ? 2.0 : winningCar === 'yellow' ? 3.5 : (supercarConfig.prizeMultiplier || 2.8));
+              // Strictly Prize Amount only (no bet refund)
               const winAmt = Math.round(t.price * multiplier);
               if (t.walletType === 'bonus') {
                 totalNewWonBonusAmount += winAmt;
@@ -2226,8 +2371,10 @@ export default function App() {
                 ...t,
                 status: 'win' as const,
                 wonAmount: winAmt,
+                winAmount: winAmt,
                 slotNum: slotInfo.slotNum,
-                drawId: slotInfo.issueId
+                drawId: slotInfo.issueId,
+                settledAt: new Date().toISOString()
               };
               persistTicket(updatedT);
               return updatedT;
@@ -2235,8 +2382,11 @@ export default function App() {
               const updatedT: PurchasedTicket = {
                 ...t,
                 status: 'loss' as const,
+                wonAmount: 0,
+                winAmount: 0,
                 slotNum: slotInfo.slotNum,
-                drawId: slotInfo.issueId
+                drawId: slotInfo.issueId,
+                settledAt: new Date().toISOString()
               };
               persistTicket(updatedT);
               return updatedT;
@@ -2270,7 +2420,7 @@ export default function App() {
               type: 'ticket_win',
               amount: totalNewWonMainAmount,
               walletType: 'main',
-              description: `🏆 Auto Payout: WON Super Car Draw (${lastWonCar.toUpperCase()} Winner!) - Credited to Main Wallet`,
+              description: `🏆 Auto Payout: WON Super Car Draw (${lastWonCar.toUpperCase()} Winner!) - Net Win ₹${totalNewWonMainAmount} Credited (No Bet Refund)`,
               status: 'completed',
               date: new Date().toLocaleString('en-IN'),
               createdAt: new Date().toISOString()
@@ -2286,7 +2436,7 @@ export default function App() {
               type: 'ticket_win',
               amount: totalNewWonBonusAmount,
               walletType: 'bonus',
-              description: `🏆 Auto Payout: WON Super Car Draw (${lastWonCar.toUpperCase()} Winner!) - Credited to Bonus Wallet`,
+              description: `🏆 Auto Payout: WON Super Car Draw (${lastWonCar.toUpperCase()} Winner!) - Net Win ₹${totalNewWonBonusAmount} Credited (No Bet Refund)`,
               status: 'completed',
               date: new Date().toLocaleString('en-IN'),
               createdAt: new Date().toISOString()
@@ -2317,10 +2467,87 @@ export default function App() {
           } catch (_) {}
         }
       }
-    }, 2000);
+    }, 1500);
 
     return () => clearInterval(interval);
-  }, [tickets, supercarPastDraws, supercarConfig, user?.id]);
+  }, [tickets, supercarPastDraws, supercarConfig, user?.id, supercarLivePools]);
+
+  // Autonomous 0-second Super Car Round Resolver (Works 24/7 even if Admin is offline)
+  // Calculates House Edge least-bet winner and stores result in Firestore supercar_draws at 0 seconds
+  useEffect(() => {
+    if (!supercarConfig.enabled) return;
+
+    const roundSupervisor = setInterval(() => {
+      try {
+        const now = new Date();
+        const currentSched = getCurrentSuperCarSchedule(supercarConfig);
+
+        const slotsToCheck: { slotNum: number; issueId: string }[] = [];
+
+        // When current slot is finishing (0 seconds remaining)
+        if (currentSched.timeRemainingMs <= 1500) {
+          slotsToCheck.push({ slotNum: currentSched.drawIndex, issueId: currentSched.issueId });
+        }
+
+        // Also ensure previous slot today is declared
+        if (currentSched.drawIndex > 1) {
+          const year = now.getFullYear();
+          const month = String(now.getMonth() + 1).padStart(2, '0');
+          const day = String(now.getDate()).padStart(2, '0');
+          const prevSlotNum = currentSched.drawIndex - 1;
+          const prevIssueId = `CAR-${year}${month}${day}-${String(prevSlotNum).padStart(2, '0')}`;
+          slotsToCheck.push({ slotNum: prevSlotNum, issueId: prevIssueId });
+        }
+
+        for (const slot of slotsToCheck) {
+          const alreadyDeclared = supercarPastDraws.some(
+            (d) => (d.issueId === slot.issueId || d.id === slot.issueId) && d.winningCar
+          );
+
+          if (!alreadyDeclared) {
+            const winningCar = getWinningCarForSlot(
+              slot.slotNum,
+              slot.issueId,
+              supercarPastDraws,
+              supercarConfig,
+              tickets,
+              supercarLivePools[slot.issueId]
+            );
+
+            setDoc(doc(db, 'supercar_draws', slot.issueId), {
+              id: slot.issueId,
+              issueId: slot.issueId,
+              drawIndex: slot.slotNum,
+              winningCar,
+              status: 'completed',
+              declaredAt: new Date().toISOString(),
+              createdAt: new Date().toISOString(),
+              autoCalculated: true,
+              houseEdgeGuaranteed: true
+            }, { merge: true }).catch(() => {});
+
+            // Auto-revert single round manual override back to Auto Low-Risk Engine for subsequent rounds
+            if (supercarConfig.resultMode === 'manual' || (supercarConfig.manualSlotWinners && supercarConfig.manualSlotWinners[slot.issueId])) {
+              const remainingSlotWinners = { ...(supercarConfig.manualSlotWinners || {}) };
+              delete remainingSlotWinners[slot.issueId];
+              delete remainingSlotWinners[slot.slotNum];
+              const resetConfig: Partial<SuperCarConfig> = {
+                resultMode: 'auto',
+                manualWinner: undefined,
+                manualSlotWinners: remainingSlotWinners
+              };
+              setSupercarConfig((prev) => ({ ...prev, ...resetConfig }));
+              setDoc(doc(db, 'game_settings', 'supercar'), resetConfig, { merge: true }).catch(() => {});
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('SuperCar round supervisor error:', err);
+      }
+    }, 1500);
+
+    return () => clearInterval(roundSupervisor);
+  }, [supercarConfig, supercarPastDraws, tickets, supercarLivePools]);
 
   // Audio mute toggle
   const handleToggleMute = () => {
@@ -2417,11 +2644,12 @@ export default function App() {
             }
           });
 
-          // Reset draw countdown for next round
+          // Reset draw countdown for next round (clear manual numbers so next round automatically calculates dynamically)
           return {
             ...draw,
             endTime: now + draw.drawDurationMs,
-            winningNumbers: winningDigits,
+            winningNumbers: undefined,
+            lastWinningResult: winningDigits,
             totalTicketsSold: Math.floor(Math.random() * 200) + 100
           };
         }
@@ -3967,7 +4195,7 @@ export default function App() {
         transactions={transactions}
         bannerSlides={bannerSlides}
         hasAdminClaim={isVerifiedAdmin}
-        onCloseAdmin={() => setIsAdminMode(false)}
+        onCloseAdmin={handleCloseAdmin}
         onApproveDeposit={handleAdminApproveDeposit}
         onRejectDeposit={handleAdminRejectDeposit}
         onApproveWithdrawal={handleAdminApproveWithdrawal}
@@ -4003,7 +4231,7 @@ export default function App() {
           muted={isMuted}
           onToggleMute={handleToggleMute}
           user={user}
-          onOpenAdmin={isVerifiedAdmin ? () => setIsAdminMode(true) : undefined}
+          onOpenAdmin={isVerifiedAdmin ? handleOpenAdmin : undefined}
           onOpenReferral={() => setIsReferralModalOpen(true)}
         />
       )}
@@ -4314,6 +4542,7 @@ export default function App() {
                     currentIssue={supercarCurrentIssue}
                     userTickets={tickets.filter((t) => t.category === 'Three Super Car Draw')}
                     pastDraws={supercarPastDraws}
+                    livePools={supercarLivePools}
                     onConfirmBuyTicket={handleConfirmSuperCarTicketBuy}
                     onDrawResolved={handleSuperCarDrawResolved}
                     onOpenFullArena={(carColor) => {
@@ -4356,6 +4585,7 @@ export default function App() {
                     currentIssue={supercarCurrentIssue}
                     userTickets={tickets.filter((t) => t.category === 'Three Super Car Draw')}
                     pastDraws={supercarPastDraws}
+                    livePools={supercarLivePools}
                     onConfirmBuyTicket={handleConfirmSuperCarTicketBuy}
                     onDrawResolved={handleSuperCarDrawResolved}
                     onOpenFullArena={(carColor) => {
@@ -4504,7 +4734,7 @@ export default function App() {
                   onOpenSettings={() => setActiveTab('settings')}
                   onOpenSupportChat={() => setIsSupportChatOpen(true)}
                   onUpdateUser={(updated) => setUser(updated)}
-                  onOpenAdmin={isVerifiedAdmin ? () => setIsAdminMode(true) : undefined}
+                  onOpenAdmin={isVerifiedAdmin ? handleOpenAdmin : undefined}
                   onOpenReferral={() => setIsReferralModalOpen(true)}
                   onLockSession={handleLockSession}
                 />
@@ -4623,7 +4853,7 @@ export default function App() {
         onOpenDeposit={() => setIsDepositOpen(true)}
         onOpenSupportChat={() => setIsSupportChatOpen(true)}
         onOpenLuckyWheel={isLuckyWheelEnabled ? () => setIsLuckyWheelOpen(true) : undefined}
-        onOpenAdmin={isVerifiedAdmin ? () => setIsAdminMode(true) : undefined}
+        onOpenAdmin={isVerifiedAdmin ? handleOpenAdmin : undefined}
         onOpenPwaNotifications={() => setIsPwaNotificationOpen(true)}
         onOpenMapLocator={() => setIsOutletMapOpen(true)}
         onOpenReferral={() => setIsReferralModalOpen(true)}
@@ -4805,6 +5035,7 @@ export default function App() {
           currentIssue={supercarCurrentIssue}
           userTickets={tickets.filter((t) => t.category === 'Three Super Car Draw')}
           pastDraws={supercarPastDraws}
+          livePools={supercarLivePools}
           initialSelectedCar={superCarSelectedColor}
           onConfirmBuyTicket={handleConfirmSuperCarTicketBuy}
           onDrawResolved={handleSuperCarDrawResolved}
@@ -5155,6 +5386,21 @@ export default function App() {
         isOpen={isOutletMapOpen}
         onClose={() => setIsOutletMapOpen(false)}
       />
+
+      {/* Quick Floating Admin Panel Switcher for Verified Admins */}
+      {isVerifiedAdmin && (
+        <button
+          onClick={() => {
+            soundFx.playClick();
+            handleOpenAdmin();
+          }}
+          className="fixed bottom-20 right-4 z-40 px-3 sm:px-4 py-2.5 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-xs rounded-2xl shadow-2xl shadow-amber-500/50 flex items-center gap-2 border-2 border-amber-300 active:scale-95 transition-all cursor-pointer animate-pulse"
+          title="Open Admin Control Panel"
+        >
+          <ShieldCheck className="w-4 h-4 stroke-[2.5]" />
+          <span className="font-mono font-black tracking-wider">ADMIN PANEL</span>
+        </button>
+      )}
 
     </div>
   );
