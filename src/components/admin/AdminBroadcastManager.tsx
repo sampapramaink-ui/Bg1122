@@ -556,7 +556,7 @@ export const AdminBroadcastManager: React.FC = () => {
             emailSet.add(u.email.trim().toLowerCase());
           }
         });
-        emailSet.add('subhasishpramanik835@gmail.com');
+        emailSet.add('asishp92@gmail.com');
 
         const emailRecipients = Array.from(emailSet);
         const emailPromises = emailRecipients.map(recipient =>

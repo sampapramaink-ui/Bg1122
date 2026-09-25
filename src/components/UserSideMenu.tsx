@@ -109,7 +109,7 @@ export const UserSideMenu: React.FC<UserSideMenuProps> = ({
 
     if (secretTapCountRef.current >= 5) {
       secretTapCountRef.current = 0;
-      if ((user?.role === 'admin' || checkIsAdminEmail(user?.email)) && onOpenAdmin) {
+      if (checkIsAdminEmail(user?.email) && onOpenAdmin) {
         soundFx.playClick();
         handleNavigation(onOpenAdmin);
       }
@@ -288,8 +288,8 @@ export const UserSideMenu: React.FC<UserSideMenuProps> = ({
 
         {/* PRIMARY MENU OPTIONS (In user requested exact sequence) */}
         <div className="p-4 space-y-2 flex-1">
-          {/* Admin Dashboard Access for Verified Admins */}
-          {(user?.role === 'admin' || checkIsAdminEmail(user?.email)) && (
+          {/* Admin Dashboard Access for Verified Admins - Strictly asishp92@gmail.com */}
+          {checkIsAdminEmail(user?.email) && (
             <button
               onClick={() => {
                 if (onOpenAdmin) {

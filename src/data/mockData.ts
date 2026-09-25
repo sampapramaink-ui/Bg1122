@@ -2,8 +2,8 @@ import { User, LotteryDraw, LotteryDrawResult, DepositRequest, WithdrawalRequest
 
 export const INITIAL_USER: User = {
   id: 'BG-789012',
-  name: 'Subhasish Pramanik',
-  email: 'subhasishpramanik835@gmail.com',
+  name: 'Asish Pramanik',
+  email: 'asishp92@gmail.com',
   phone: '+91 98765 43210',
   balance: 6435.00,
   avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',

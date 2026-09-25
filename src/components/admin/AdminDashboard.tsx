@@ -109,8 +109,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onBannerSlidesUpdated
 }) => {
   const isVerifiedAdmin = Boolean(
-    hasAdminClaim ||
-    user?.role === 'admin' ||
     checkIsAdminEmail(user?.email)
   );
 
@@ -920,7 +918,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             totalReferrals: typeof data.totalReferrals === 'number' ? data.totalReferrals : 0,
             lastSpinTime: typeof data.lastSpinTime === 'number' ? data.lastSpinTime : 0,
             status: data.status || 'active',
-            role: data.role || (checkIsAdminEmail(email) ? 'admin' : 'user'),
+            role: checkIsAdminEmail(email) ? 'admin' : 'user',
             vipLevel: data.vipLevel || 'Bronze',
             vipPoints: typeof data.vipPoints === 'number' ? data.vipPoints : 120,
             regDate: data.regDate || new Date().toLocaleDateString('en-IN'),
@@ -1018,7 +1016,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             let bestSpent = 0;
             let bestVip = 120;
             let bestVipLevel = 'Bronze';
-            let bestRole: 'user' | 'admin' = (email && checkIsAdminEmail(email)) ? 'admin' : canonicalUser.role;
+            let bestRole: 'user' | 'admin' = (email && checkIsAdminEmail(email)) ? 'admin' : 'user';
 
             userGroup.forEach((g) => {
               if (g.balance > bestBal) bestBal = g.balance;
@@ -1298,8 +1296,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setDoc(doc(db, 'transactions', txId), txData, { merge: true }).catch(() => {});
   };
 
-  // Role-Based Access Control (RBAC) Guard
-  const isAdmin = user.role === 'admin' || user.email === 'subhasishpramanik835@gmail.com' || true; // Allow access for app owner/admin mode
+  // Role-Based Access Control (RBAC) Guard - Strictly asishp92@gmail.com
+  const isAdmin = checkIsAdminEmail(user?.email);
 
   if (!isAdmin) {
     return (

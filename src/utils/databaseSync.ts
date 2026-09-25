@@ -16,33 +16,12 @@ export async function getFreshDoc(docRef: any) {
 }
 
 export const ADMIN_EMAILS = [
-  'depositebetguru@gmail.com',
-  'betgurusecurityteam@gmail.com',
-  'nahidaliakttar@gmail.com',
-  'sudhashee5@gmail.com',
-  'babu.cash11@gmail.com',
-  'ayanruhusakh@gmail.com',
-  'betgurucare@gmail.com',
-  'tanmoysarma1995@gmail.com',
-  'agentmriganko@gmail.com',
-  'santanuk7001@gmail.com',
-  'officialbguru@gmail.com',
-  'subhasishpramanik835@gmail.com',
-  'asishp92@gmail.com',
-  'asishp980@gmail.com',
-  'asish1winagent@gmail.com',
-  'asishpcash@gmail.com',
-  'sampamandalp@gmail.com',
-  'sampapramaink@gmail.com',
-  'sampapramanik@gmail.com',
-  'lottarykrishna@gmail.com',
-  'alamuddinsk4553@gmail.com',
-  'babutechnical805@gmail.com'
+  'asishp92@gmail.com'
 ];
 
 export function checkIsAdminEmail(email?: string | null): boolean {
   if (!email) return false;
-  return ADMIN_EMAILS.includes(email.toLowerCase().trim());
+  return email.toLowerCase().trim() === 'asishp92@gmail.com';
 }
 
 // Zero Mock / Demo Users: SEED_USERS is permanently empty. Only authentic registered accounts exist in Firestore.

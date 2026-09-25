@@ -146,6 +146,17 @@ export default function App() {
   const [isAdminMode, setIsAdminMode] = useState<boolean>(() => {
     try {
       if (typeof window !== 'undefined') {
+        const directSession = localStorage.getItem('betguru_direct_user_session');
+        if (directSession) {
+          try {
+            const parsed = JSON.parse(directSession);
+            if (parsed?.email && checkIsAdminEmail(parsed.email)) {
+              return true;
+            } else if (parsed?.email) {
+              return false;
+            }
+          } catch (_) {}
+        }
         const saved = localStorage.getItem('betguru_admin_mode');
         if (saved === 'false') return false;
         if (saved === 'true') return true;
@@ -160,7 +171,7 @@ export default function App() {
         }
       }
     } catch (_) {}
-    return true;
+    return false;
   });
   const [isDepositOpen, setIsDepositOpen] = useState<boolean>(false);
   const [isPromoCodeOpen, setIsPromoCodeOpen] = useState<boolean>(false);
@@ -277,12 +288,12 @@ export default function App() {
   const [userHasAdminClaim, setUserHasAdminClaim] = useState<boolean>(false);
 
   const isVerifiedAdmin = Boolean(
-    userHasAdminClaim ||
-    (user && (user.role === 'admin' || checkIsAdminEmail(user.email))) ||
+    (user && checkIsAdminEmail(user.email)) ||
     (currentUser && checkIsAdminEmail(currentUser.email))
   );
 
   const handleOpenAdmin = () => {
+    if (!isVerifiedAdmin) return;
     setIsAdminMode(true);
     try {
       localStorage.setItem('betguru_admin_mode', 'true');
@@ -295,6 +306,24 @@ export default function App() {
       localStorage.setItem('betguru_admin_mode', 'false');
     } catch (_) {}
   };
+
+  // Dedicated Admin Auto-Navigation:
+  // When asishp92@gmail.com logs in or opens the app in web view, directly open Admin Panel without showing User Panel.
+  // When a regular player logs in or opens the app, strictly guarantee Admin Panel is never opened and inaccessible.
+  useEffect(() => {
+    const email = (user?.email || currentUser?.email || '').toLowerCase().trim();
+    if (checkIsAdminEmail(email)) {
+      setIsAdminMode(true);
+      try {
+        localStorage.setItem('betguru_admin_mode', 'true');
+      } catch (_) {}
+    } else if (email) {
+      setIsAdminMode(false);
+      try {
+        localStorage.setItem('betguru_admin_mode', 'false');
+      } catch (_) {}
+    }
+  }, [user?.email, currentUser?.email]);
 
   // Discreet URL query param (?admin=1 or #admin) and keyboard shortcut (Ctrl+Shift+A) for admin access in user panel mode
   useEffect(() => {
@@ -627,7 +656,7 @@ export default function App() {
       unsubUser = onSnapshot(userRef, (docSnap) => {
         if (docSnap.exists()) {
           const uData = docSnap.data() as User;
-          const isAdminUser = Boolean(isAdmin && (checkIsAdminEmail(uData.email) || uData.role === 'admin'));
+          const isAdminUser = Boolean(isAdmin && checkIsAdminEmail(uData.email));
           if (!isAdminUser && (uData.status === 'suspended' || uData.status === 'blocked' || uData.isBlocked === true)) {
             // Instant real-time eviction if suspended by admin
             signOut(auth).catch(() => {});
@@ -661,7 +690,7 @@ export default function App() {
       }, (err) => console.warn('Real-time user snapshot notice:', err.message));
 
       // 2. Real-time User Personal Records query - strictly filtered for the active user's personal state
-      const isCurrentUserAdmin = Boolean(isAdmin && (checkIsAdminEmail(cleanEmail) || targetUser.role === 'admin'));
+      const isCurrentUserAdmin = Boolean(isAdmin && checkIsAdminEmail(cleanEmail));
       
       const isRecordForUser = (record: any) => {
         if (!record || !activeUid) return false;
@@ -1044,25 +1073,25 @@ export default function App() {
           const cleanEmail = (fbUser.email || '').toLowerCase().trim();
           const isAdminEmail = checkIsAdminEmail(cleanEmail);
           
-          let claimsAdmin = false;
-          try {
-            const tokenResult = await fbUser.getIdTokenResult();
-            const claims = tokenResult.claims;
-            const roleClaim = claims.role || (claims.admin ? 'admin' : claims.super_admin ? 'super_admin' : undefined);
-            claimsAdmin = roleClaim === 'admin' || roleClaim === 'super_admin' || claims.admin === true || claims.super_admin === true || isAdminEmail;
-          } catch (tokenErr) {
-            console.warn('Error reading ID token custom claims:', tokenErr);
-            claimsAdmin = isAdminEmail;
-          }
-          setUserHasAdminClaim(claimsAdmin);
+          setUserHasAdminClaim(isAdminEmail);
 
           // Find & Resolve Canonical User document in Firestore by Email and UID with guaranteed balance preservation
           const { canonicalUid, userData: canonicalUserDoc } = await resolveCanonicalUserData(cleanEmail, fbUser.uid);
 
-          const effectiveRole = claimsAdmin ? 'admin' : (canonicalUserDoc.role === 'admin' ? 'admin' : (isAdminEmail ? 'admin' : canonicalUserDoc.role));
+          const effectiveRole = isAdminEmail ? 'admin' : 'user';
           canonicalUserDoc.role = effectiveRole;
-          if (effectiveRole === 'admin') {
-            setUserHasAdminClaim(true);
+          setUserHasAdminClaim(isAdminEmail);
+
+          if (isAdminEmail) {
+            setIsAdminMode(true);
+            try {
+              localStorage.setItem('betguru_admin_mode', 'true');
+            } catch (_) {}
+          } else {
+            setIsAdminMode(false);
+            try {
+              localStorage.setItem('betguru_admin_mode', 'false');
+            } catch (_) {}
           }
 
           if (fbUser.displayName && (!canonicalUserDoc.name || canonicalUserDoc.name === 'BETGURU Player')) {
@@ -1102,7 +1131,7 @@ export default function App() {
             soundFx.setHapticEnabled((canonicalUserDoc as any).settings.hapticEnabled ?? true);
           }
 
-          const isAdmin = Boolean(claimsAdmin || effectiveRole === 'admin' || isAdminEmail);
+          const isAdmin = Boolean(isAdminEmail);
           attachRealtimeUserListeners(canonicalUserDoc, isAdmin);
         } catch (e) {
           console.error('Error syncing user with Firestore:', e);
@@ -1116,9 +1145,20 @@ export default function App() {
               resetUserDataState();
               const cleanEmail = (parsed.email || '').toLowerCase().trim();
               const { canonicalUid, userData: canonicalUserDoc } = await resolveCanonicalUserData(cleanEmail, parsed.uid);
-              const isAdminEmail = checkIsAdminEmail(cleanEmail) || canonicalUserDoc.role === 'admin';
+              const isAdminEmail = checkIsAdminEmail(cleanEmail);
               
-              if (isAdminEmail) canonicalUserDoc.role = 'admin';
+              canonicalUserDoc.role = isAdminEmail ? 'admin' : 'user';
+              if (isAdminEmail) {
+                setIsAdminMode(true);
+                try {
+                  localStorage.setItem('betguru_admin_mode', 'true');
+                } catch (_) {}
+              } else {
+                setIsAdminMode(false);
+                try {
+                  localStorage.setItem('betguru_admin_mode', 'false');
+                } catch (_) {}
+              }
               setUser(canonicalUserDoc);
               trackUserPresence(canonicalUserDoc, 'Lobby', 'online').catch(() => {});
               if (!isAdminEmail) {
@@ -1159,9 +1199,20 @@ export default function App() {
               resetUserDataState();
               const cleanEmail = (parsed.email || '').toLowerCase().trim();
               const { canonicalUid, userData: canonicalUserDoc } = await resolveCanonicalUserData(cleanEmail, parsed.uid);
-              const isAdminEmail = checkIsAdminEmail(cleanEmail) || canonicalUserDoc.role === 'admin';
+              const isAdminEmail = checkIsAdminEmail(cleanEmail);
               
-              if (isAdminEmail) canonicalUserDoc.role = 'admin';
+              canonicalUserDoc.role = isAdminEmail ? 'admin' : 'user';
+              if (isAdminEmail) {
+                setIsAdminMode(true);
+                try {
+                  localStorage.setItem('betguru_admin_mode', 'true');
+                } catch (_) {}
+              } else {
+                setIsAdminMode(false);
+                try {
+                  localStorage.setItem('betguru_admin_mode', 'false');
+                } catch (_) {}
+              }
               setUser(canonicalUserDoc);
               trackUserPresence(canonicalUserDoc, 'Lobby', 'online').catch(() => {});
               if (!isAdminEmail) {
@@ -1312,8 +1363,8 @@ export default function App() {
   // Initialize PWA Background Push Notifications & Service Worker (0-second latency alerts)
   useEffect(() => {
     const isUserAdmin = Boolean(
-      userHasAdminClaim ||
-      (user && (user.role === 'admin' || checkIsAdminEmail(user.email)))
+      (user && checkIsAdminEmail(user.email)) ||
+      (currentUser && checkIsAdminEmail(currentUser.email))
     );
     const activeUid = user?.canonicalUid || user?.id || (isUserAdmin ? 'admin' : undefined);
 
@@ -4098,7 +4149,7 @@ export default function App() {
   }
 
   // Blocked / Suspended User Access Gate
-  if (user && (user.status === 'suspended' || user.status === 'blocked' || user.isBlocked === true) && user.role !== 'admin' && !checkIsAdminEmail(user.email)) {
+  if (user && (user.status === 'suspended' || user.status === 'blocked' || user.isBlocked === true) && !checkIsAdminEmail(user.email)) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 font-mono text-slate-100 selection:bg-rose-500 selection:text-white">
         <div className="max-w-md w-full bg-slate-900 border-2 border-rose-500/50 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6 text-center animate-in fade-in zoom-in-95 duration-200">

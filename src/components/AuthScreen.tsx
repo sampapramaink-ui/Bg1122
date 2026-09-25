@@ -290,7 +290,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
           name: resolvedName,
           phone: resolvedPhone,
           email: cleanEmail,
-          role: isAdminEmail ? 'admin' : (existingData.role || 'user'),
+          role: isAdminEmail ? 'admin' : 'user',
           lastLogin: new Date().toISOString(),
           linkedDocIds: [canonicalUid]
         }, { merge: true });
@@ -312,11 +312,16 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
           status: 'online'
         }, { merge: true }).catch(() => {});
 
+        if (isAdminEmail) {
+          localStorage.setItem('betguru_admin_mode', 'true');
+        } else {
+          localStorage.setItem('betguru_admin_mode', 'false');
+        }
         localStorage.setItem('betguru_direct_user_session', JSON.stringify({
           uid: canonicalUid,
           email: cleanEmail,
           name: resolvedName,
-          role: isAdminEmail ? 'admin' : (existingData.role || 'user')
+          role: isAdminEmail ? 'admin' : 'user'
         }));
         window.dispatchEvent(new Event('betguru_direct_auth_changed'));
 
@@ -444,6 +449,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
         localStorage.removeItem('betguru_tickets');
         localStorage.removeItem('betguru_notifications');
 
+        if (isAdminEmail) {
+          localStorage.setItem('betguru_admin_mode', 'true');
+        } else {
+          localStorage.setItem('betguru_admin_mode', 'false');
+        }
+
         localStorage.setItem('betguru_direct_user_session', JSON.stringify({
           uid: registeredUid,
           email: cleanEmail,
@@ -537,7 +548,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
         id: canonicalUid,
         userCode: permanentUserCode,
         canonicalUid: canonicalUid,
-        role: isAdminEmail ? 'admin' : (existingData?.role || 'user'),
+        role: isAdminEmail ? 'admin' : 'user',
         lastLogin: new Date().toISOString(),
         linkedDocIds: [canonicalUid]
       }, { merge: true }).catch((err) => console.warn('setDoc user login merge notice:', err));
@@ -571,11 +582,16 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
         status: 'online'
       }, { merge: true }).catch(() => {});
 
+      if (isAdminEmail) {
+        localStorage.setItem('betguru_admin_mode', 'true');
+      } else {
+        localStorage.setItem('betguru_admin_mode', 'false');
+      }
       localStorage.setItem('betguru_direct_user_session', JSON.stringify({
         uid: canonicalUid,
         email: cleanEmail,
         name: realName,
-        role: isAdminEmail ? 'admin' : (existingData.role || 'user')
+        role: isAdminEmail ? 'admin' : 'user'
       }));
       window.dispatchEvent(new Event('betguru_direct_auth_changed'));
     } else {
@@ -658,11 +674,16 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
         status: 'online'
       }, { merge: true }).catch(() => {});
 
+      if (isAdminEmail) {
+        localStorage.setItem('betguru_admin_mode', 'true');
+      } else {
+        localStorage.setItem('betguru_admin_mode', 'false');
+      }
       localStorage.setItem('betguru_direct_user_session', JSON.stringify({
         uid: canonicalUid,
         email: cleanEmail,
         name: newUserDoc.name,
-        role: newUserDoc.role
+        role: isAdminEmail ? 'admin' : 'user'
       }));
       window.dispatchEvent(new Event('betguru_direct_auth_changed'));
     }
@@ -851,7 +872,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
           try {
             await setDoc(userRef, {
               email: cleanEmail,
-              role: isAdminEmail ? 'admin' : (existingData?.role || 'user'),
+              role: isAdminEmail ? 'admin' : 'user',
               lastLogin: new Date().toISOString()
             }, { merge: true });
           } catch (_) {}
@@ -883,11 +904,16 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
           status: 'online'
         }, { merge: true }).catch(() => {});
 
+        if (isAdminEmail) {
+          localStorage.setItem('betguru_admin_mode', 'true');
+        } else {
+          localStorage.setItem('betguru_admin_mode', 'false');
+        }
         localStorage.setItem('betguru_direct_user_session', JSON.stringify({
           uid: canonicalUid,
           email: cleanEmail,
           name: currentUserName,
-          role: isAdminEmail ? 'admin' : (userSnap?.data()?.role || 'user')
+          role: isAdminEmail ? 'admin' : 'user'
         }));
         window.dispatchEvent(new Event('betguru_direct_auth_changed'));
       }

@@ -122,7 +122,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
     if (profileAdminTapCountRef.current >= 5) {
       profileAdminTapCountRef.current = 0;
-      if ((currentUser.role === 'admin' || checkIsAdminEmail(currentUser.email)) && onOpenAdmin) {
+      if (checkIsAdminEmail(currentUser.email) && onOpenAdmin) {
         soundFx.playClick();
         onOpenAdmin();
       }
@@ -153,7 +153,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     }
   };
 
-  const isAdminUser = Boolean(currentUser.role === 'admin' || checkIsAdminEmail(currentUser.email));
+  const isAdminUser = Boolean(checkIsAdminEmail(currentUser.email));
   const vipPts = currentUser.vipPoints || (currentUser.totalSpent ? Math.floor(currentUser.totalSpent / 10) : 120);
   const currentLevel = calculateVipLevel(vipPts);
   const currentTierInfo = VIP_TIERS[currentLevel];
