@@ -217,14 +217,13 @@ export function getSyncedCrashRoundDetails(
 
   // Deterministic Crash Multiplier Generation with Spribe/Aviator distribution
   const isManualActive = Boolean((config as any)?.isManualOverride);
-  const isRoundMatched = !(config as any)?.targetRoundId || (config as any).targetRoundId === roundId;
   const rawForced = (config?.manualForceNextMultiplier !== undefined && config?.manualForceNextMultiplier !== null && !isNaN(Number(config.manualForceNextMultiplier)))
     ? Number(config.manualForceNextMultiplier)
     : ((config as any)?.forcedCrashMultiplier !== undefined && (config as any)?.forcedCrashMultiplier !== null && !isNaN(Number((config as any).forcedCrashMultiplier)))
     ? Number((config as any).forcedCrashMultiplier)
     : null;
 
-  const forcedMult = (isManualActive && isRoundMatched && rawForced !== null) ? rawForced : null;
+  const forcedMult = (isManualActive && rawForced !== null && rawForced >= 1.0) ? rawForced : null;
 
   let crashMultiplier = 1.00;
   if (forcedMult !== null && forcedMult >= 1.0) {

@@ -95,14 +95,20 @@ export const SuperCarArenaGame: React.FC<SuperCarArenaGameProps> = ({
 
   const carsList: SuperCarColor[] = ['red', 'black', 'yellow'];
 
-  // Three Super Car is strictly playable ONLY with Bonus Balance
-  const walletType: 'main' | 'bonus' = 'bonus';
-  const effectiveWalletBalance = userBonusBalance;
-
   // Real vs Bonus Unit Pricing Calculation
   const realUnitPrice = config.carPrices?.[selectedCar] || config.ticketPrice || 100;
   const effectiveBonusPrice = config.bonusCarPrices?.[selectedCar] || config.bonusTicketPrice || bonusRules?.superCarBonusTicketPrice || realUnitPrice;
-  const currentUnitPrice = effectiveBonusPrice;
+
+  // Flexible Wallet Selection: Main Cash (Real Balance) by default, or Bonus Wallet if desired/enabled
+  const [walletType, setWalletType] = useState<'main' | 'bonus'>(() => {
+    if (config.bonusOnly === true) return 'bonus';
+    if ((user?.balance || 0) >= (config.carPrices?.[selectedCar] || config.ticketPrice || 100)) return 'main';
+    if (userBonusBalance >= effectiveBonusPrice) return 'bonus';
+    return 'main';
+  });
+
+  const effectiveWalletBalance = walletType === 'bonus' ? userBonusBalance : (user?.balance || 0);
+  const currentUnitPrice = walletType === 'bonus' ? effectiveBonusPrice : realUnitPrice;
   const activeMultiplier = config.carMultipliers?.[selectedCar] || config.prizeMultiplier || 2.8;
 
   const totalCost = quantity * currentUnitPrice;
@@ -628,50 +634,69 @@ export const SuperCarArenaGame: React.FC<SuperCarArenaGameProps> = ({
             </div>
           </div>
 
-          {/* Step 1: Payment Wallet (Bonus Wallet Exclusive) */}
+          {/* Step 1: Payment Wallet (Main Cash or Bonus Wallet) */}
           <div className="space-y-1.5">
             <label className="text-[11px] font-bold text-slate-300 uppercase flex items-center justify-between">
-              <span className="flex items-center gap-1 text-purple-400">
-                <Gift className="w-3.5 h-3.5" /> 1. Payment Source (Bonus Only)
+              <span className="flex items-center gap-1 text-amber-400">
+                <Wallet className="w-3.5 h-3.5" /> 1. Select Payment Wallet
               </span>
-              <span className="text-xs font-black text-purple-300">
-                Available Bonus: ₹{userBonusBalance.toFixed(2)}
+              <span className="text-xs font-black text-slate-300 font-mono">
+                {walletType === 'main' ? `Main Cash: ₹${user.balance.toFixed(2)}` : `Bonus: ₹${userBonusBalance.toFixed(2)}`}
               </span>
             </label>
 
             <div className="grid grid-cols-2 gap-2 sm:gap-3">
-              {/* Bonus Wallet (Active) */}
-              <div
-                className="p-3 rounded-2xl border text-left transition-all relative bg-gradient-to-br from-purple-950/80 to-slate-900 border-purple-400 ring-2 ring-purple-400/40 shadow-lg shadow-purple-950/50"
+              {/* Main Cash Wallet */}
+              <button
+                type="button"
+                onClick={() => setWalletType('main')}
+                className={`p-3 rounded-2xl border text-left transition-all relative cursor-pointer ${
+                  walletType === 'main'
+                    ? 'bg-gradient-to-br from-amber-950/80 to-slate-900 border-amber-400 ring-2 ring-amber-400/40 shadow-lg shadow-amber-950/50'
+                    : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-purple-300 flex items-center gap-1.5">
+                  <span className={`text-xs font-bold flex items-center gap-1.5 ${walletType === 'main' ? 'text-amber-300' : 'text-slate-400'}`}>
+                    <Wallet className="w-3.5 h-3.5" /> Real Cash
+                  </span>
+                  {walletType === 'main' && (
+                    <CheckCircle2 className="w-4 h-4 text-amber-400 fill-amber-400 text-slate-950" />
+                  )}
+                </div>
+                <div className={`text-sm sm:text-base font-black mt-1 ${walletType === 'main' ? 'text-amber-200' : 'text-slate-400'}`}>
+                  ₹{user.balance.toFixed(2)}
+                </div>
+                <span className="text-[9px] text-amber-400/90 font-sans block mt-0.5">
+                  Real Win • Winnings credit to Real Balance
+                </span>
+              </button>
+
+              {/* Bonus Wallet */}
+              <button
+                type="button"
+                onClick={() => setWalletType('bonus')}
+                className={`p-3 rounded-2xl border text-left transition-all relative cursor-pointer ${
+                  walletType === 'bonus'
+                    ? 'bg-gradient-to-br from-purple-950/80 to-slate-900 border-purple-400 ring-2 ring-purple-400/40 shadow-lg shadow-purple-950/50'
+                    : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className={`text-xs font-bold flex items-center gap-1.5 ${walletType === 'bonus' ? 'text-purple-300' : 'text-slate-400'}`}>
                     <Gift className="w-3.5 h-3.5" /> Bonus Wallet
                   </span>
-                  <CheckCircle2 className="w-4 h-4 text-purple-400 fill-purple-400 text-slate-950" />
+                  {walletType === 'bonus' && (
+                    <CheckCircle2 className="w-4 h-4 text-purple-400 fill-purple-400 text-slate-950" />
+                  )}
                 </div>
-                <div className="text-sm sm:text-base font-black text-purple-200 mt-1">₹{userBonusBalance.toFixed(2)}</div>
+                <div className={`text-sm sm:text-base font-black mt-1 ${walletType === 'bonus' ? 'text-purple-200' : 'text-slate-400'}`}>
+                  ₹{userBonusBalance.toFixed(2)}
+                </div>
                 <span className="text-[9px] text-purple-400/90 font-sans block mt-0.5">
-                  100% Eligible • Winnings credit to Bonus
+                  Bonus Win • Winnings credit to Bonus
                 </span>
-              </div>
-
-              {/* Main Cash Wallet (Locked) */}
-              <div
-                className="p-3 rounded-2xl border text-left transition-all relative bg-slate-950/60 border-slate-800 opacity-50 cursor-not-allowed"
-                title="Super Car can only be played with Bonus Balance"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-400 flex items-center gap-1.5">
-                    <Wallet className="w-3.5 h-3.5" /> Main Real Cash
-                  </span>
-                  <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">LOCKED</span>
-                </div>
-                <div className="text-sm sm:text-base font-black text-slate-500 mt-1">₹{user.balance.toFixed(2)}</div>
-                <span className="text-[9px] text-amber-500/80 font-sans block mt-0.5">
-                  🔒 সুপার কারে গ্রহণযোগ্য নয়
-                </span>
-              </div>
+              </button>
             </div>
           </div>
 

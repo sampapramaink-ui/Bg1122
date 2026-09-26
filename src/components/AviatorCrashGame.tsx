@@ -222,15 +222,15 @@ export const AviatorCrashGame: React.FC<AviatorCrashGameProps> = ({
     const unsubLiveState = onSnapshot(doc(db, 'crash_live_state', 'current_round'), (snap) => {
       if (snap.exists()) {
         const data = snap.data() as any;
-        const isRoundMatch = !data.targetRoundId || data.targetRoundId === roundIdRef.current;
-        const forcedM = (data.isManualOverride && isRoundMatch && typeof data.forcedCrashMultiplier === 'number')
+        const isManual = Boolean(data.isManualOverride);
+        const forcedM = (isManual && typeof data.forcedCrashMultiplier === 'number')
           ? data.forcedCrashMultiplier
-          : (data.isManualOverride && isRoundMatch && typeof data.manualForceNextMultiplier === 'number' ? data.manualForceNextMultiplier : null);
-        const autoLowRiskM = (!data.isManualOverride && data.isAutoLowRiskActive !== false && typeof data.autoCrashMultiplier === 'number')
+          : (isManual && typeof data.manualForceNextMultiplier === 'number' ? data.manualForceNextMultiplier : null);
+        const autoLowRiskM = (!isManual && data.isAutoLowRiskActive !== false && typeof data.autoCrashMultiplier === 'number')
           ? data.autoCrashMultiplier
           : null;
 
-        if (data.forceInstantCrash && gamePhaseRef.current === 'flying' && isRoundMatch) {
+        if (data.forceInstantCrash && gamePhaseRef.current === 'flying') {
           crashPointRef.current = currentMultRef.current;
           setCrashPoint(currentMultRef.current);
           gamePhaseRef.current = 'crashed';
@@ -1130,8 +1130,9 @@ export const AviatorCrashGame: React.FC<AviatorCrashGameProps> = ({
               crashMultiplier: roundDetails.crashMultiplier,
               settledAt: new Date().toISOString()
             },
-            // Reset manual override flags
+            // Reset manual override flags and reinstate Auto Low-Risk Engine
             isManualOverride: false,
+            isAutoLowRiskActive: true,
             forcedCrashMultiplier: null,
             manualForceNextMultiplier: null,
             forceInstantCrash: false,
@@ -1141,6 +1142,7 @@ export const AviatorCrashGame: React.FC<AviatorCrashGameProps> = ({
           // Guarantee game_settings reverts to Auto Low-Risk even if Admin is offline
           setDoc(doc(db, 'game_settings', 'crash_game'), {
             isManualOverride: false,
+            isAutoLowRiskActive: true,
             manualForceNextMultiplier: null,
             forcedCrashMultiplier: null,
             forceInstantCrash: false,

@@ -373,7 +373,9 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                       <div>
                         <span className="text-[9px] uppercase text-slate-400 block font-bold">Winning Supercar</span>
                         <span className="text-xs font-black text-amber-300">{carInfo.name}</span>
-                        <span className="text-[10px] text-emerald-400 block font-bold">2.8x Payout</span>
+                        <span className="text-[10px] text-emerald-400 block font-bold">
+                          {((supercarConfig?.carMultipliers && (supercarConfig.carMultipliers as any)[slot.winningCar || 'black']) || (slot.winningCar === 'red' ? 2.0 : slot.winningCar === 'yellow' ? 3.5 : 2.8))}x Payout
+                        </span>
                       </div>
                     </div>
                   )}

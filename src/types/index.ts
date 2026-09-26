@@ -526,6 +526,7 @@ export interface SuperCarDrawIssue {
     black: number;
     yellow: number;
   };
+  manualOverride?: boolean;
   createdAt?: number;
 }
 

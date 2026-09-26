@@ -235,6 +235,7 @@ export default function App() {
   const isInitialDepositsLoadRef = React.useRef<boolean>(true);
   const prevWithdrawalStatusesRef = React.useRef<Map<string, string>>(new Map());
   const isInitialWithdrawalsLoadRef = React.useRef<boolean>(true);
+  const resolvedSuperCarIssuesRef = React.useRef<Set<string>>(new Set());
 
   // Auto-request browser push notification permissions on user interaction
   useEffect(() => {
@@ -2003,8 +2004,8 @@ export default function App() {
       return;
     }
 
-    // User can strictly only buy Super Car tickets using Bonus Balance
-    const effectiveWalletType: 'main' | 'bonus' = (supercarConfig.bonusOnly !== false) ? 'bonus' : walletType;
+    // Support both Main Wallet and Bonus Wallet according to user choice
+    const effectiveWalletType: 'main' | 'bonus' = (supercarConfig.bonusOnly === true) ? 'bonus' : (walletType || 'main');
 
     logAnalyticsEvent('ticket_buy', { category: 'Three Super Car Draw', carColor, quantity, totalCost, walletType: effectiveWalletType }, currentUserId, user?.email);
 
@@ -2165,14 +2166,22 @@ export default function App() {
     triggerConfetti();
   };
 
-  // SuperCar Draw Resolved Handler
+  // SuperCar Draw Resolved Handler (Single Authoritative Source of Truth)
   const handleSuperCarDrawResolved = async (issueId: string, winningCarInput?: SuperCarColor) => {
-    soundFx.playWinFanfare();
-    triggerConfetti();
+    if (!issueId) return;
+
+    // Prevent duplicate settlement execution for the same issue in the current session
+    if (resolvedSuperCarIssuesRef.current.has(issueId)) {
+      return;
+    }
+    resolvedSuperCarIssuesRef.current.add(issueId);
 
     const slotNum = Number(issueId.split('-').pop()) || 1;
+    // Check if draw is already declared in past draws (Firestore / memory)
+    const existingDraw = supercarPastDraws.find((d) => (d.issueId === issueId || d.id === issueId) && d.winningCar);
+
     // Enforce 100% authoritative winner determination using the House Edge engine:
-    const winningCar = getWinningCarForSlot(
+    const winningCar: SuperCarColor = existingDraw?.winningCar || winningCarInput || getWinningCarForSlot(
       slotNum,
       issueId,
       supercarPastDraws,
@@ -2202,15 +2211,17 @@ export default function App() {
       || (winningCar === 'red' ? 2.0 : winningCar === 'yellow' ? 3.5 : (supercarConfig.prizeMultiplier || 2.8));
 
     const updatedTickets = tickets.map((t) => {
-      if (t.category === 'Three Super Car Draw' && t.status === 'active') {
+      const isSuperCar = t.category === 'Three Super Car Draw' || (t as any).lotteryTitle?.includes('Super Car') || t.drawTitle?.includes('Super Car');
+      if (isSuperCar && t.status === 'active') {
         const slotInfo = getSlotFromTicket(t, supercarConfig);
         const matchesDraw =
           t.drawId === issueId ||
           slotInfo.issueId === issueId ||
+          ((t as any).lotteryTitle && (t as any).lotteryTitle.includes(issueId)) ||
           (t.drawTitle && t.drawTitle.includes(issueId));
 
         if (matchesDraw) {
-          const tCar = (t.selectedCar || t.selectedNumbers?.[0] as string || 'red').toLowerCase();
+          const tCar = (t.selectedCar || (t as any).carColor || t.selectedNumbers?.[0] as string || 'red').toLowerCase();
           if (tCar === winningCar.toLowerCase()) {
             // Strictly Prize Amount only (e.g. 2.0x of ₹100 = ₹200). Initial bet is NOT refunded.
             const winAmt = Math.round(t.price * effectiveMultiplier);
@@ -2249,6 +2260,9 @@ export default function App() {
     setTickets(sortChronologicalNewestFirst(updatedTickets));
 
     if (totalWonMainAmount > 0 || totalWonBonusAmount > 0) {
+      soundFx.playWinFanfare();
+      triggerConfetti();
+
       setUser((prev) => {
         if (!prev) return prev;
         const newBal = (prev.balance || 0) + totalWonMainAmount;
@@ -2269,7 +2283,7 @@ export default function App() {
           type: 'ticket_win',
           amount: totalWonMainAmount,
           walletType: 'main',
-          description: `🏆 WON Super Car Draw (${winningCar.toUpperCase()} Winner - ${effectiveMultiplier}x Payout!) - Net Win ₹${totalWonMainAmount} Credited (No Bet Refund)`,
+          description: `🏆 WON Super Car Draw (${winningCar.toUpperCase()} Winner - ${effectiveMultiplier}x Payout!) - Net Win ₹${totalWonMainAmount} Credited to Real Balance`,
           status: 'completed',
           date: new Date().toLocaleString('en-IN'),
           createdAt: new Date().toISOString()
@@ -2285,7 +2299,7 @@ export default function App() {
           type: 'ticket_win',
           amount: totalWonBonusAmount,
           walletType: 'bonus',
-          description: `🏆 WON Super Car Draw (${winningCar.toUpperCase()} Winner - ${effectiveMultiplier}x Payout!) - Net Win ₹${totalWonBonusAmount} Credited (No Bet Refund)`,
+          description: `🏆 WON Super Car Draw (${winningCar.toUpperCase()} Winner - ${effectiveMultiplier}x Payout!) - Net Win ₹${totalWonBonusAmount} Credited to Bonus Wallet`,
           status: 'completed',
           date: new Date().toLocaleString('en-IN'),
           createdAt: new Date().toISOString()
@@ -2367,155 +2381,11 @@ export default function App() {
       if (activeSuperCarTickets.length === 0) return;
 
       const nowMs = Date.now();
-      let totalNewWonMainAmount = 0;
-      let totalNewWonBonusAmount = 0;
-      let lastWonCar: SuperCarColor = 'black';
-      let hasSettled = false;
-
-      const updated = tickets.map((t) => {
-        if (t.category === 'Three Super Car Draw' && t.status === 'active') {
-          const slotInfo = getSlotFromTicket(t, supercarConfig);
-          // Has draw timer expired for this slot?
-          if (nowMs >= slotInfo.drawEndTimeMs) {
-            hasSettled = true;
-            const winningCar = getWinningCarForSlot(
-              slotInfo.slotNum,
-              slotInfo.issueId,
-              supercarPastDraws,
-              supercarConfig,
-              tickets,
-              supercarLivePools[slotInfo.issueId]
-            );
-
-            // Persist draw issue to Firestore supercar_draws if not yet recorded
-            setDoc(doc(db, 'supercar_draws', slotInfo.issueId), {
-              id: slotInfo.issueId,
-              issueId: slotInfo.issueId,
-              drawIndex: slotInfo.slotNum,
-              winningCar,
-              status: 'completed',
-              declaredAt: new Date().toISOString(),
-              createdAt: new Date().toISOString(),
-              autoCalculated: true,
-              houseEdgeProtected: true
-            }, { merge: true }).catch(() => {});
-
-            const playerCar = (t.selectedCar || t.selectedNumbers?.[0] || 'red')
-              .toString()
-              .toLowerCase() as SuperCarColor;
-
-            const isWinner = playerCar === winningCar.toLowerCase();
-
-            if (isWinner) {
-              const multiplier = (supercarConfig.carMultipliers && (supercarConfig.carMultipliers as any)[winningCar])
-                || (winningCar === 'red' ? 2.0 : winningCar === 'yellow' ? 3.5 : (supercarConfig.prizeMultiplier || 2.8));
-              // Strictly Prize Amount only (no bet refund)
-              const winAmt = Math.round(t.price * multiplier);
-              if (t.walletType === 'bonus') {
-                totalNewWonBonusAmount += winAmt;
-              } else {
-                totalNewWonMainAmount += winAmt;
-              }
-              lastWonCar = winningCar;
-
-              const updatedT: PurchasedTicket = {
-                ...t,
-                status: 'win' as const,
-                wonAmount: winAmt,
-                winAmount: winAmt,
-                slotNum: slotInfo.slotNum,
-                drawId: slotInfo.issueId,
-                settledAt: new Date().toISOString()
-              };
-              persistTicket(updatedT);
-              return updatedT;
-            } else {
-              const updatedT: PurchasedTicket = {
-                ...t,
-                status: 'loss' as const,
-                wonAmount: 0,
-                winAmount: 0,
-                slotNum: slotInfo.slotNum,
-                drawId: slotInfo.issueId,
-                settledAt: new Date().toISOString()
-              };
-              persistTicket(updatedT);
-              return updatedT;
-            }
-          }
-        }
-        return t;
-      });
-
-      if (hasSettled) {
-        setTickets(sortChronologicalNewestFirst(updated));
-
-        if (totalNewWonMainAmount > 0 || totalNewWonBonusAmount > 0) {
-          setUser((prev) => {
-            if (!prev) return prev;
-            const newBal = (prev.balance || 0) + totalNewWonMainAmount;
-            const newBonusBal = (prev.bonusBalance || 0) + totalNewWonBonusAmount;
-            if (prev.id) persistUserBalance(prev.id, newBal, newBonusBal, prev.email);
-            return {
-              ...prev,
-              balance: newBal,
-              bonusBalance: newBonusBal,
-              totalWon: (prev.totalWon || 0) + totalNewWonMainAmount + totalNewWonBonusAmount
-            };
-          });
-
-          if (totalNewWonMainAmount > 0) {
-            const winTx: WalletTransaction = {
-              id: `TXN-SC-WIN-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`,
-              userId: user?.id || 'anonymous',
-              type: 'ticket_win',
-              amount: totalNewWonMainAmount,
-              walletType: 'main',
-              description: `🏆 Auto Payout: WON Super Car Draw (${lastWonCar.toUpperCase()} Winner!) - Net Win ₹${totalNewWonMainAmount} Credited (No Bet Refund)`,
-              status: 'completed',
-              date: new Date().toLocaleString('en-IN'),
-              createdAt: new Date().toISOString()
-            };
-            setTransactions((prev) => sortChronologicalNewestFirst([winTx, ...prev]));
-            persistTransaction(winTx);
-          }
-
-          if (totalNewWonBonusAmount > 0) {
-            const bonusWinTx: WalletTransaction = {
-              id: `TXN-SC-BONUS-WIN-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`,
-              userId: user?.id || 'anonymous',
-              type: 'ticket_win',
-              amount: totalNewWonBonusAmount,
-              walletType: 'bonus',
-              description: `🏆 Auto Payout: WON Super Car Draw (${lastWonCar.toUpperCase()} Winner!) - Net Win ₹${totalNewWonBonusAmount} Credited (No Bet Refund)`,
-              status: 'completed',
-              date: new Date().toLocaleString('en-IN'),
-              createdAt: new Date().toISOString()
-            };
-            setTransactions((prev) => sortChronologicalNewestFirst([bonusWinTx, ...prev]));
-            persistTransaction(bonusWinTx);
-          }
-
-          // Trigger Grand 8K Big Win Celebration Modal
-          const totalWon = totalNewWonMainAmount + totalNewWonBonusAmount;
-          const carInfo = getSuperCarInfo(lastWonCar, supercarConfig);
-          setBigWinData({
-            id: `supercar-auto-win-${Date.now()}`,
-            category: 'supercar',
-            title: 'সুপার কার গ্র্যান্ড চ্যাম্পিয়ন!',
-            subtitle: `SUPER CAR DRAW WINNER`,
-            amount: totalWon,
-            multiplier: `${supercarConfig.prizeMultiplier || 2.8}x`,
-            carColor: lastWonCar,
-            carName: carInfo.name,
-            carImage: carInfo.image,
-            walletType: totalNewWonBonusAmount > 0 && totalNewWonMainAmount === 0 ? 'bonus' : 'main'
-          });
-
-          try {
-            soundFx.playWinFanfare();
-            triggerConfetti();
-          } catch (_) {}
+      for (const t of activeSuperCarTickets) {
+        const slotInfo = getSlotFromTicket(t, supercarConfig);
+        // Has draw timer expired for this slot?
+        if (nowMs >= slotInfo.drawEndTimeMs) {
+          handleSuperCarDrawResolved(slotInfo.issueId);
         }
       }
     }, 1500);
@@ -2530,67 +2400,11 @@ export default function App() {
 
     const roundSupervisor = setInterval(() => {
       try {
-        const now = new Date();
         const currentSched = getCurrentSuperCarSchedule(supercarConfig);
-
-        const slotsToCheck: { slotNum: number; issueId: string }[] = [];
 
         // When current slot is finishing (0 seconds remaining)
         if (currentSched.timeRemainingMs <= 1500) {
-          slotsToCheck.push({ slotNum: currentSched.drawIndex, issueId: currentSched.issueId });
-        }
-
-        // Also ensure previous slot today is declared
-        if (currentSched.drawIndex > 1) {
-          const year = now.getFullYear();
-          const month = String(now.getMonth() + 1).padStart(2, '0');
-          const day = String(now.getDate()).padStart(2, '0');
-          const prevSlotNum = currentSched.drawIndex - 1;
-          const prevIssueId = `CAR-${year}${month}${day}-${String(prevSlotNum).padStart(2, '0')}`;
-          slotsToCheck.push({ slotNum: prevSlotNum, issueId: prevIssueId });
-        }
-
-        for (const slot of slotsToCheck) {
-          const alreadyDeclared = supercarPastDraws.some(
-            (d) => (d.issueId === slot.issueId || d.id === slot.issueId) && d.winningCar
-          );
-
-          if (!alreadyDeclared) {
-            const winningCar = getWinningCarForSlot(
-              slot.slotNum,
-              slot.issueId,
-              supercarPastDraws,
-              supercarConfig,
-              tickets,
-              supercarLivePools[slot.issueId]
-            );
-
-            setDoc(doc(db, 'supercar_draws', slot.issueId), {
-              id: slot.issueId,
-              issueId: slot.issueId,
-              drawIndex: slot.slotNum,
-              winningCar,
-              status: 'completed',
-              declaredAt: new Date().toISOString(),
-              createdAt: new Date().toISOString(),
-              autoCalculated: true,
-              houseEdgeGuaranteed: true
-            }, { merge: true }).catch(() => {});
-
-            // Auto-revert single round manual override back to Auto Low-Risk Engine for subsequent rounds
-            if (supercarConfig.resultMode === 'manual' || (supercarConfig.manualSlotWinners && supercarConfig.manualSlotWinners[slot.issueId])) {
-              const remainingSlotWinners = { ...(supercarConfig.manualSlotWinners || {}) };
-              delete remainingSlotWinners[slot.issueId];
-              delete remainingSlotWinners[slot.slotNum];
-              const resetConfig: Partial<SuperCarConfig> = {
-                resultMode: 'auto',
-                manualWinner: undefined,
-                manualSlotWinners: remainingSlotWinners
-              };
-              setSupercarConfig((prev) => ({ ...prev, ...resetConfig }));
-              setDoc(doc(db, 'game_settings', 'supercar'), resetConfig, { merge: true }).catch(() => {});
-            }
-          }
+          handleSuperCarDrawResolved(currentSched.issueId);
         }
       } catch (err) {
         console.warn('SuperCar round supervisor error:', err);
@@ -5084,7 +4898,7 @@ export default function App() {
           bonusRules={bonusRules}
           config={supercarConfig}
           currentIssue={supercarCurrentIssue}
-          userTickets={tickets.filter((t) => t.category === 'Three Super Car Draw')}
+          userTickets={tickets.filter((t) => t.category === 'Three Super Car Draw' || (t as any).lotteryTitle?.includes('Super Car') || t.drawTitle?.includes('Super Car'))}
           pastDraws={supercarPastDraws}
           livePools={supercarLivePools}
           initialSelectedCar={superCarSelectedColor}

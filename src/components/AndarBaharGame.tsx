@@ -315,9 +315,9 @@ export const AndarBaharGame: React.FC<AndarBaharGameProps> = ({
         const data = snap.data() as any;
         setConfig((prev) => {
           const candidate = data.forcedWinner || data.manualForceWinner || data.manualForceTarget;
-          const isRoundMatch = !data.targetRoundId || data.targetRoundId === roundIdRef.current;
-          const isManual = Boolean(data.isManualOverride) && isRoundMatch && Boolean(candidate && (candidate as string) !== 'random');
+          const isManual = Boolean(data.isManualOverride) && Boolean(candidate && (candidate as string) !== 'random');
           let forcedWinner: AndarBaharSide | 'random' = isManual ? (candidate as AndarBaharSide) : 'random';
+          let autoLowRiskWinner: AndarBaharSide | undefined = (data.autoLowRiskWinner && data.autoLowRiskWinner !== 'random') ? data.autoLowRiskWinner : undefined;
           let rtpMode: 'fair_rng' | 'house_protect' | 'manual_force_winner' = isManual ? 'manual_force_winner' : 'house_protect';
 
           const nextMin = data.minBet !== undefined ? Number(data.minBet) : prev.minBet;
@@ -335,6 +335,7 @@ export const AndarBaharGame: React.FC<AndarBaharGameProps> = ({
             ...prev,
             manualForceWinner: forcedWinner,
             forcedWinner: forcedWinner,
+            autoLowRiskWinner,
             isManualOverride: isManual && forcedWinner !== 'random',
             rtpMode,
             minBet: nextMin,
@@ -720,6 +721,7 @@ export const AndarBaharGame: React.FC<AndarBaharGameProps> = ({
         },
         // Reset manual override flags so future rounds calculate dynamically via House Edge
         isManualOverride: false,
+        isAutoLowRiskActive: true,
         forcedWinner: 'random',
         manualForceWinner: 'random',
         manualForceTarget: 'random',

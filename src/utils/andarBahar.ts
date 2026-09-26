@@ -196,9 +196,8 @@ export function simulateAndarBaharRound(
     : null;
 
   let targetSide: AndarBaharSide;
-  const isManualForce = isManualActive && !!forcedTarget;
 
-  if (isManualForce) {
+  if (forcedTarget) {
     targetSide = forcedTarget as AndarBaharSide;
   } else if (totalBetsAndar > 0 || totalBetsBahar > 0) {
     // 🛡️ UNCONDITIONAL 100% HOUSE PROTECTION: House NEVER suffers net loss
@@ -343,16 +342,11 @@ export function getSyncedAndarBaharRoundDetails(roundIndex: number, config?: And
     ? (config as any).manualForceTarget
     : null;
 
-  const isRoundMatched = !(config as any)?.targetRoundId || (config as any).targetRoundId === roundId;
-  const isManualForce = isManualActive && !!forcedTarget && isRoundMatched;
-
   let targetSide: AndarBaharSide;
 
-  if (isManualForce) {
+  if (forcedTarget) {
     targetSide = forcedTarget as AndarBaharSide;
-  } else if ((config as any)?.manualForceWinner && (config as any).manualForceWinner !== 'random' && isRoundMatched) {
-    targetSide = (config as any).manualForceWinner as AndarBaharSide;
-  } else if ((config as any)?.autoLowRiskWinner && (config as any).autoLowRiskWinner !== 'random' && isRoundMatched) {
+  } else if ((config as any)?.autoLowRiskWinner && (config as any).autoLowRiskWinner !== 'random') {
     targetSide = (config as any).autoLowRiskWinner as AndarBaharSide;
   } else if (totalLiveBets > 0) {
     // 🛡️ UNCONDITIONAL 100% HOUSE PROTECTION:

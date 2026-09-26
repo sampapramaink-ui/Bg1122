@@ -50,13 +50,16 @@ export function isIgnoredBenignError(message?: string, stack?: string): boolean 
     return true;
   }
 
-  // 3. Firestore offline & connection latency notices
+  // 3. Firestore offline & connection latency notices, and IndexedDB tab-hiding notices
   if (
     combined.includes('could not reach cloud firestore backend') ||
     combined.includes("backend didn't respond within") ||
     combined.includes('the client will operate in offline mode') ||
     combined.includes('the client is offline') ||
-    combined.includes('client is offline')
+    combined.includes('client is offline') ||
+    combined.includes('database is closing/hidden') ||
+    combined.includes('database is closing') ||
+    combined.includes('database is hidden')
   ) {
     return true;
   }

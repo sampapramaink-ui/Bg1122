@@ -86,15 +86,29 @@ export function calculateSuperCarLiveBettingStats(
   const blackMultiplier = config.carMultipliers?.black || config.prizeMultiplier || 2.8;
   const yellowMultiplier = config.carMultipliers?.yellow || 3.5;
 
-  // Filter tickets for this specific slot or issueId
+  // Filter tickets specifically for this slot or issueId (ignoring tickets from other dates or already settled draws)
   const slotTickets = allTickets.filter((t) => {
     if (!t) return false;
-    if (t.category !== 'Three Super Car Draw' && !t.drawTitle?.includes('Super Car')) return false;
+    const cat = (t.category || '').toLowerCase();
+    const title = ((t as any).lotteryTitle || t.drawTitle || '').toLowerCase();
+    const isSuperCar = cat.includes('super car') || title.includes('super car') || cat.includes('supercar');
+    if (!isSuperCar) return false;
 
-    // Match by explicit issueId or slot number
-    if (t.drawId === issueId) return true;
-    if (t.slotNum === slotNum) return true;
-    if (t.drawTitle && (t.drawTitle.includes(issueId) || t.drawTitle.includes(`Slot #${String(slotNum).padStart(2, '0')}`))) return true;
+    // Direct match by issueId
+    if (t.drawId === issueId || (t as any).issueId === issueId) return true;
+    if ((t as any).lotteryTitle && (t as any).lotteryTitle.includes(issueId)) return true;
+    if (t.drawTitle && t.drawTitle.includes(issueId)) return true;
+
+    // Match by slotNum on the same day
+    const issueDateStr = issueId.split('-')[1] || '';
+    const ticketDateStr = (t.purchaseDate || t.drawDate || (t.createdAt ? t.createdAt.substring(0, 10) : '')).replace(/\D/g, '');
+    const isSameDay = !issueDateStr || !ticketDateStr || ticketDateStr.includes(issueDateStr) || issueDateStr.includes(ticketDateStr);
+
+    if (isSameDay) {
+      if (t.slotNum === slotNum || (t as any).slotNumber === slotNum) return true;
+      if ((t as any).lotteryId && (t as any).lotteryId.includes(`slot-${slotNum}`)) return true;
+      if (title.includes(`slot #${String(slotNum).padStart(2, '0')}`) || title.includes(`slot-${slotNum}`)) return true;
+    }
 
     return false;
   });
@@ -136,7 +150,14 @@ export function calculateSuperCarLiveBettingStats(
       realBalanceVolume += cost;
     }
 
-    const rawColor = (t.selectedCar || t.selectedNumbers?.[0] || 'red').toString().toLowerCase();
+    let rawColor = (t.selectedCar || (t as any).carColor || (t as any).car || t.selectedNumbers?.[0] || '').toString().toLowerCase();
+    if (!rawColor) {
+      const fullText = `${(t as any).lotteryTitle || ''} ${t.drawTitle || ''}`.toLowerCase();
+      if (fullText.includes('red')) rawColor = 'red';
+      else if (fullText.includes('black')) rawColor = 'black';
+      else if (fullText.includes('yellow')) rawColor = 'yellow';
+      else rawColor = 'red';
+    }
 
     if (rawColor === 'red') {
       redBets += cost;
@@ -216,40 +237,63 @@ export function calculateSuperCarLiveBettingStats(
 
     const dateNum = Number(issueId.replace(/\D/g, '')) || 20260913;
 
-    if (totalPool === 0) {
+    // Check actual player bets to guarantee House Edge (players never win unless admin forces)
+    const realPlayerBetColors = new Set<SuperCarColor>();
+    if (redPlayerSet.size > 0 || redTicketCount > 0 || redBets > 0) realPlayerBetColors.add('red');
+    if (blackPlayerSet.size > 0 || blackTicketCount > 0 || blackBets > 0) realPlayerBetColors.add('black');
+    if (yellowPlayerSet.size > 0 || yellowTicketCount > 0 || yellowBets > 0) realPlayerBetColors.add('yellow');
+
+    if (realPlayerBetColors.size > 0) {
+      // Find cars that active human players did NOT bet on
+      const unbetByPlayers = (['red', 'black', 'yellow'] as SuperCarColor[]).filter(c => !realPlayerBetColors.has(c));
+      
+      if (unbetByPlayers.length > 0) {
+        // Player bet on 1 or 2 cars: choose an unbet car so player payout is ₹0 and House retains 100%!
+        const chosen = unbetByPlayers[(slotNum + dateNum) % unbetByPlayers.length];
+        calculatedWinner = chosen;
+        calculationReason = `🛡️ হাউস সুরক্ষা (House Edge Protection): প্লেয়ার ${Array.from(realPlayerBetColors).join(', ').toUpperCase()} গাড়িতে বাজি ধরেছে। হাউস সুরক্ষা বজায় রেখে ${chosen.toUpperCase()} কারকে বিজয়ী ঘোষণা করা হয়েছে যাতে প্লেয়ার পে-আউট ₹০ হয় এবং হাউস ১০০% লাভ পায়।`;
+      } else {
+        // Player bet on all 3 cars: select the car that minimizes payout liability and maximizes House Profit
+        const candidates = [
+          { color: 'red' as SuperCarColor, bets: redBets, payout: redPayout, profit: houseProfitRed, margin: redMargin },
+          { color: 'black' as SuperCarColor, bets: blackBets, payout: blackPayout, profit: houseProfitBlack, margin: blackMargin },
+          { color: 'yellow' as SuperCarColor, bets: yellowBets, payout: yellowPayout, profit: houseProfitYellow, margin: yellowMargin }
+        ];
+        candidates.sort((a, b) => {
+          if (b.profit !== a.profit) return b.profit - a.profit;
+          return a.bets - b.bets;
+        });
+        calculatedWinner = candidates[0].color;
+        calculationReason = `🛡️ হাউস সুরক্ষা (মাল্টি-বেট): প্লেয়ার সমস্ত গাড়িতে বাজি ধরেছে। সর্বনিম্ন পে-আউট দায়বদ্ধতা সম্পন্ন ${calculatedWinner.toUpperCase()} কার বিজয়ী করা হয়েছে।`;
+      }
+    } else if (totalPool === 0) {
       // Empty round: deterministic fair alternation across all 3 cars
       const colors: SuperCarColor[] = ['red', 'black', 'yellow'];
       calculatedWinner = colors[(slotNum * 7 + dateNum) % 3];
       calculationReason = `No bets placed in this round: Deterministic rotation selected ${calculatedWinner.toUpperCase()} Car. House liability is ₹0.`;
     } else {
-      // Check for completely EMPTY cars (0 bets / ফাঁকা)
+      // Simulated pool with no direct user tickets: choose car with zero bets or lowest liability
       const emptyCars: { color: SuperCarColor; multiplier: number }[] = [];
       if (redBets === 0) emptyCars.push({ color: 'red', multiplier: redMultiplier });
       if (blackBets === 0) emptyCars.push({ color: 'black', multiplier: blackMultiplier });
       if (yellowBets === 0) emptyCars.push({ color: 'yellow', multiplier: yellowMultiplier });
 
       if (emptyCars.length > 0) {
-        // At least one car has 0 bets: declaring it winner gives ₹0 payout and 100% house profit!
         const chosen = emptyCars[(slotNum + dateNum) % emptyCars.length];
         calculatedWinner = chosen.color;
-        calculationReason = `ফাঁকা বাজি প্রটেকশন (Empty Bet Spot): No user bets placed on ${calculatedWinner.toUpperCase()} Car (₹0 bets). Declaring it winner secures ₹0 payout liability and 100% House Profit (₹${totalPool.toLocaleString('en-IN')}).`;
+        calculationReason = `ফাঁকা বাজি প্রটেকশন (Empty Bet Spot): No bets placed on ${calculatedWinner.toUpperCase()} Car. Declaring it winner secures ₹0 payout liability.`;
       } else {
-        // All cars have bets placed: select the car with MAXIMUM house profit (LOWEST payout liability)
         const candidates = [
           { color: 'red' as SuperCarColor, bets: redBets, payout: redPayout, profit: houseProfitRed, margin: redMargin },
           { color: 'black' as SuperCarColor, bets: blackBets, payout: blackPayout, profit: houseProfitBlack, margin: blackMargin },
           { color: 'yellow' as SuperCarColor, bets: yellowBets, payout: yellowPayout, profit: houseProfitYellow, margin: yellowMargin }
         ];
-
-        // Sort primarily by highest house profit (lowest liability), then by lowest bet volume
         candidates.sort((a, b) => {
-          if (b.profit !== a.profit) return b.profit - a.profit; // Highest profit first
-          return a.bets - b.bets; // Lowest bets first
+          if (b.profit !== a.profit) return b.profit - a.profit;
+          return a.bets - b.bets;
         });
-
-        const best = candidates[0];
-        calculatedWinner = best.color;
-        calculationReason = `কম বেটিং ও হাউস প্রফিট সুরক্ষা (Least Bet & House Profit Protection): ${best.color.toUpperCase()} Car selected with lowest payout liability (₹${best.payout.toLocaleString('en-IN')}) and least bet volume (₹${best.bets.toLocaleString('en-IN')}). Yields maximum House Profit of ₹${best.profit.toLocaleString('en-IN')} (${best.margin.toFixed(1)}% margin). House is 100% protected against losses.`;
+        calculatedWinner = candidates[0].color;
+        calculationReason = `হাউস প্রফিট সুরক্ষা: ${candidates[0].color.toUpperCase()} Car selected with maximum House Profit.`;
       }
     }
   }

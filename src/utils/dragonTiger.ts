@@ -709,16 +709,12 @@ export function getSyncedDragonTigerRoundOutcome(
     ? (config as any).manualForceTarget
     : null;
 
-  const isRoundMatched = !(config as any)?.targetRoundId || (config as any).targetRoundId === roundId;
-  const isManualForce = isManualActive && !!forcedTarget && isRoundMatched;
   let targetSide: DragonTigerSide;
 
-  if (isManualForce) {
+  if (forcedTarget) {
     targetSide = forcedTarget as DragonTigerSide;
-  } else if ((config as any)?.autoLowRiskWinner && (config as any).autoLowRiskWinner !== 'random' && isRoundMatched) {
+  } else if ((config as any)?.autoLowRiskWinner && (config as any).autoLowRiskWinner !== 'random') {
     targetSide = (config as any).autoLowRiskWinner as DragonTigerSide;
-  } else if ((config as any)?.manualForceWinner && (config as any).manualForceWinner !== 'random' && isRoundMatched) {
-    targetSide = (config as any).manualForceWinner as DragonTigerSide;
   } else if (totalRealBets > 0) {
     // 🛡️ UNCONDITIONAL 100% HOUSE PROTECTION:
     // Calculates payout liability with 0-second latency across all players.

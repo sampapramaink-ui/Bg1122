@@ -1,5 +1,11 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { 
+  getAuth, 
+  initializeAuth, 
+  browserLocalPersistence, 
+  browserSessionPersistence, 
+  inMemoryPersistence 
+} from 'firebase/auth';
 import { 
   initializeFirestore, 
   getFirestore, 
@@ -36,7 +42,22 @@ try {
 }
 
 export const db = firestoreInstance;
-export const auth = getAuth(app);
+
+let authInstance;
+try {
+  // Use browserLocalPersistence to prevent IndexedDB lock conflicts and 'Database is closing/hidden' crashes in backgrounded tabs/iframes
+  authInstance = initializeAuth(app, {
+    persistence: [browserLocalPersistence, browserSessionPersistence, inMemoryPersistence],
+  });
+} catch (_authErr) {
+  try {
+    authInstance = getAuth(app);
+  } catch (_fallbackAuthErr) {
+    authInstance = getAuth(app);
+  }
+}
+
+export const auth = authInstance;
 export const storage = getStorage(app);
 
 export enum OperationType {

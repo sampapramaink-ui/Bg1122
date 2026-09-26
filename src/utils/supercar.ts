@@ -59,7 +59,7 @@ export const DEFAULT_SUPERCAR_CONFIG: SuperCarConfig = {
   ticketPrice: 100,
   bonusTicketPrice: 100,
   allowBonusPurchase: true,
-  bonusOnly: true,
+  bonusOnly: false,
   houseEdgePercent: 5.0,
   prizeMultiplier: 2.8,
   carMultipliers: {
@@ -377,7 +377,8 @@ export function getWinningCarForSlot(
     if (d.issueId === issueId || d.id === issueId) return true;
     return false;
   });
-  if (matchedDraw?.winningCar) {
+  // If explicitly declared or already completed in pastDraws, return immutable declared winner
+  if (matchedDraw?.winningCar && (matchedDraw.status === 'completed' || (matchedDraw as any)?.manualOverride)) {
     return matchedDraw.winningCar;
   }
 

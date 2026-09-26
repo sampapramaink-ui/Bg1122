@@ -387,8 +387,8 @@ export const AdminDragonTigerManager: React.FC = () => {
         forcedWinner: target,
         manualForceWinner: target,
         manualForceTarget: target,
-        targetRoundId: currentRoundId,
         isAutoLowRiskActive: !isManual,
+        autoLowRiskWinner: !isManual ? (riskAnalysis.lowestRiskSide && riskAnalysis.lowestRiskSide !== 'random' ? riskAnalysis.lowestRiskSide : undefined) : undefined,
         updatedAt: new Date().toISOString(),
       }, { merge: true });
 
@@ -1046,45 +1046,24 @@ export const AdminDragonTigerManager: React.FC = () => {
                 </div>
               </div>
 
-              {/* Quick 1-Click Action to Change Predicted Result with 0s Latency */}
+              {/* Single Authoritative Mode & Auto-Reset Status Card */}
               <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 flex flex-col justify-between">
-                <span className="text-[10px] text-slate-400 uppercase font-bold">ফলাফল তাৎক্ষণিক পরিবর্তন (0s Latency):</span>
-                <div className="grid grid-cols-2 gap-1.5 my-2">
-                  <button
-                    onClick={() => handleSetForcedWinner('dragon')}
-                    className={`py-1.5 px-2 rounded-xl text-[10px] font-black transition cursor-pointer border ${
-                      preResult.winner === 'dragon' ? 'bg-red-600 text-white border-white' : 'bg-red-950/40 text-red-300 border-red-800/60 hover:bg-red-900/40'
-                    }`}
-                  >
-                    🐉 FORCE DRAGON
-                  </button>
-                  <button
-                    onClick={() => handleSetForcedWinner('tiger')}
-                    className={`py-1.5 px-2 rounded-xl text-[10px] font-black transition cursor-pointer border ${
-                      preResult.winner === 'tiger' ? 'bg-cyan-600 text-white border-white' : 'bg-cyan-950/40 text-cyan-300 border-cyan-800/60 hover:bg-cyan-900/40'
-                    }`}
-                  >
-                    🐯 FORCE TIGER
-                  </button>
-                  <button
-                    onClick={() => handleSetForcedWinner('tie')}
-                    className={`py-1.5 px-2 rounded-xl text-[10px] font-black transition cursor-pointer border ${
-                      preResult.winner === 'tie' ? 'bg-emerald-600 text-white border-white' : 'bg-emerald-950/40 text-emerald-300 border-emerald-800/60 hover:bg-emerald-900/40'
-                    }`}
-                  >
-                    🤝 FORCE TIE
-                  </button>
-                  <button
-                    onClick={handleToggleAutoLowRisk}
-                    className={`py-1.5 px-2 rounded-xl text-[10px] font-black transition cursor-pointer border ${
-                      isAutoLowRiskActive ? 'bg-amber-600 text-white border-white' : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
-                    }`}
-                  >
-                    🛡️ AUTO LOW-RISK
-                  </button>
+                <span className="text-[10px] text-slate-400 uppercase font-bold">একক নিয়ন্ত্রণ স্ট্যাটাস (Single Authoritative Mode):</span>
+                <div className="my-2 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2.5 h-2.5 rounded-full ${isManualOverrideEnabled ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`} />
+                    <span className="text-xs font-black text-white">
+                      {isManualOverrideEnabled ? `ম্যানুয়াল ফোর্স সক্রিয় (${selectedForcedWinner.toUpperCase()})` : '🛡️ অটো রিক্স ইঞ্জিন (১০০% হাউস প্রোটেকশন)'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    {isManualOverrideEnabled 
+                      ? '🎯 শুধুমাত্র এই চলতি রাউন্ডের জন্য বলবৎ। রাউন্ড শেষ হলেই তাৎক্ষণিক অটো রিক্স ইঞ্জিন চালু হবে।' 
+                      : '🛡️ হাউসের ১০০% লাভ নিশ্চিত। এডমিন অফলাইনে থাকলেও কোনোভাবেই হাউস লস করবে না।'}
+                  </p>
                 </div>
-                <div className="text-[9px] text-slate-500 text-center">
-                  ক্লিক করার সাথে সাথে প্রিভিউ ও ফলাফল আপডেট হবে।
+                <div className="text-[10px] text-cyan-400 font-bold border-t border-slate-800/80 pt-1.5 flex items-center justify-between">
+                  <span>নিচের 'Direct 1-Click Manual Outcome Forcing' প্যানেল একমাত্র কন্ট্রোলার</span>
                 </div>
               </div>
             </div>
@@ -1298,15 +1277,15 @@ export const AdminDragonTigerManager: React.FC = () => {
               </div>
             </div>
 
-            {/* DIRECT 1-CLICK INSTANT OUTCOME FORCING */}
+            {/* DIRECT 1-CLICK INSTANT OUTCOME FORCING - SINGLE AUTHORITATIVE CONTROLLER */}
             <div className="space-y-3 font-mono border-t border-slate-800 pt-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1.5">
                 <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
                   <Target className="w-3.5 h-3.5 text-red-400" />
                   <span>Direct 1-Click Manual Outcome Forcing (0s Latency):</span>
                 </span>
-                <span className="text-[10px] text-slate-400">
-                  Active Override: <strong className="text-white uppercase">{selectedForcedWinner}</strong>
+                <span className="text-[10px] text-amber-300 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                  ⚡ ১ রাউন্ডের ম্যানুয়াল ফোর্স — রাউন্ড শেষেই অটো রিক্স ইঞ্জিন পুনরায় চালু হবে
                 </span>
               </div>
 
@@ -1409,14 +1388,11 @@ export const AdminDragonTigerManager: React.FC = () => {
                       {data.riskRating.toUpperCase()} RISK
                     </span>
 
-                    <button
-                      onClick={() => handleSetForcedWinner(side)}
-                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition cursor-pointer ${
-                        isTargeted ? 'bg-white text-slate-950 font-black' : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
-                      }`}
-                    >
-                      {isTargeted ? 'TARGETED' : 'FORCE'}
-                    </button>
+                    <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase ${
+                      isTargeted ? 'bg-amber-400 text-slate-950 shadow-md font-black' : 'bg-slate-800/80 text-slate-400'
+                    }`}>
+                      {isTargeted ? 'TARGETED' : `${side}`}
+                    </span>
                   </div>
                 </div>
               );

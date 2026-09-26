@@ -132,25 +132,11 @@ export async function processScheduledLotteryDraws(): Promise<{ processedCount: 
         publishedAt: publishedAtIso
       }, { merge: true });
 
-      // 2. Update main draw doc so "Last Winning Result" reflects immediately
+      // Super Car is handled strictly by its dedicated 0-second Live Risk Engine.
+      // Do not process Super Car here to avoid conflicting random draws or double settlement.
       const isSuperCar = (slot.category || '').toLowerCase().includes('car');
       if (isSuperCar) {
-        const winningCarColor = (finalWinningResult[0] || 'red').toString().toLowerCase();
-        await setDoc(doc(db, 'supercar_draws', slot.id), {
-          id: slot.id,
-          issueId: slot.slotName || slot.id,
-          drawTime: slot.drawTimeLabel || new Date().toLocaleTimeString(),
-          winningCar: winningCarColor,
-          status: 'completed',
-          declaredAt: publishedAtIso
-        }, { merge: true });
-      } else {
-        await setDoc(doc(db, 'draws', slot.lotteryId), {
-          winningNumbers: finalWinningResult,
-          status: 'completed',
-          lastDrawCompletedAt: publishedAtIso,
-          lastWinningResult: finalWinningResult
-        }, { merge: true });
+        continue;
       }
 
       // 3. Process all tickets for this draw

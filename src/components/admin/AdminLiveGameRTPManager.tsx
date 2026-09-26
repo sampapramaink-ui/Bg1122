@@ -86,8 +86,14 @@ export const DEFAULT_RTP_SETTINGS: Record<string, LiveGameRtpSettings> = {
   }
 };
 
-export const AdminLiveGameRTPManager: React.FC = () => {
-  const [activeGame, setActiveGame] = useState<'roulette' | 'andar_bahar' | 'dragon_tiger' | 'crash'>('roulette');
+export const AdminLiveGameRTPManager: React.FC<{ initialGame?: 'roulette' | 'andar_bahar' | 'dragon_tiger' | 'crash' }> = ({ initialGame = 'roulette' }) => {
+  const [activeGame, setActiveGame] = useState<'roulette' | 'andar_bahar' | 'dragon_tiger' | 'crash'>(initialGame);
+
+  useEffect(() => {
+    if (initialGame) {
+      setActiveGame(initialGame);
+    }
+  }, [initialGame]);
   const [settings, setSettings] = useState<Record<string, LiveGameRtpSettings>>(() => {
     try {
       const cached = localStorage.getItem('bg_game_settings_cache');
@@ -265,36 +271,85 @@ export const AdminLiveGameRTPManager: React.FC = () => {
         }
       } else if (gameType === 'dragon_tiger') {
         setForcedDtWinner(forcedValue);
+        const isManual = forcedValue !== 'random' && forcedValue !== null;
+        await setDoc(doc(db, 'dragon_tiger_live_state', 'current_round'), {
+          isManualOverride: isManual,
+          forcedWinner: forcedValue,
+          manualForceWinner: forcedValue,
+          manualForceTarget: forcedValue,
+          isAutoLowRiskActive: !isManual,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
         await setDoc(doc(db, 'dragon_tiger_config', 'main'), {
-          rtpMode: forcedValue === 'random' ? 'fair_rng' : 'manual_force_winner',
-          manualForceWinner: forcedValue
+          rtpMode: isManual ? 'manual_force_winner' : 'house_protect',
+          manualForceWinner: forcedValue,
+          forcedWinner: forcedValue,
+          manualForceTarget: forcedValue,
+          isManualOverride: isManual,
+          updatedAt: new Date().toISOString()
         }, { merge: true });
         await setDoc(doc(db, 'game_settings', 'dragon_tiger'), {
-          rtpMode: forcedValue === 'random' ? 'fair_rng' : 'manual_force',
-          manualForceTarget: forcedValue
+          rtpMode: isManual ? 'manual_force' : 'house_protect',
+          manualForceTarget: forcedValue,
+          manualForceWinner: forcedValue,
+          forcedWinner: forcedValue,
+          isManualOverride: isManual,
+          updatedAt: new Date().toISOString()
         }, { merge: true });
-        setStatusMessage(`Dragon Tiger: Forced next winner to ${forcedValue.toUpperCase()}!`);
+        setStatusMessage(isManual ? `Dragon Tiger: Forced next winner to ${forcedValue.toUpperCase()}!` : 'Dragon Tiger: Reset to Auto Risk Engine!');
       } else if (gameType === 'andar_bahar') {
         setForcedAbWinner(forcedValue);
+        const isManual = forcedValue !== 'random' && forcedValue !== null;
+        await setDoc(doc(db, 'andar_bahar_live_state', 'current_round'), {
+          isManualOverride: isManual,
+          forcedWinner: forcedValue,
+          manualForceWinner: forcedValue,
+          manualForceTarget: forcedValue,
+          isAutoLowRiskActive: !isManual,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
         await setDoc(doc(db, 'andar_bahar_config', 'main'), {
-          rtpMode: forcedValue === 'random' ? 'fair_rng' : 'manual_force_winner',
-          manualForceWinner: forcedValue
+          rtpMode: isManual ? 'manual_force_winner' : 'house_protect',
+          manualForceWinner: forcedValue,
+          forcedWinner: forcedValue,
+          manualForceTarget: forcedValue,
+          isManualOverride: isManual,
+          updatedAt: new Date().toISOString()
         }, { merge: true });
         await setDoc(doc(db, 'game_settings', 'andar_bahar'), {
-          rtpMode: forcedValue === 'random' ? 'fair_rng' : 'manual_force',
-          manualForceTarget: forcedValue
+          rtpMode: isManual ? 'manual_force' : 'house_protect',
+          manualForceTarget: forcedValue,
+          manualForceWinner: forcedValue,
+          forcedWinner: forcedValue,
+          isManualOverride: isManual,
+          updatedAt: new Date().toISOString()
         }, { merge: true });
-        setStatusMessage(`Andar Bahar: Forced next winner to ${forcedValue.toUpperCase()}!`);
+        setStatusMessage(isManual ? `Andar Bahar: Forced next winner to ${forcedValue.toUpperCase()}!` : 'Andar Bahar: Reset to Auto Risk Engine!');
       } else if (gameType === 'crash') {
         const val = forcedValue === 'random' || forcedValue === null ? null : parseFloat(forcedValue);
         setForcedCrashMultiplier(val ? val.toString() : '');
+        const isManual = val !== null;
+        await setDoc(doc(db, 'crash_live_state', 'current_round'), {
+          isManualOverride: isManual,
+          forcedCrashMultiplier: val,
+          manualForceNextMultiplier: val,
+          isAutoLowRiskActive: !isManual,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
         await setDoc(doc(db, 'game_settings', 'crash_game'), {
-          manualForceNextMultiplier: val
+          manualForceNextMultiplier: val,
+          forcedCrashMultiplier: val,
+          isManualOverride: isManual,
+          rtpMode: isManual ? 'manual_force' : 'house_protect',
+          updatedAt: new Date().toISOString()
         }, { merge: true });
         await setDoc(doc(db, 'crash_config', 'main'), {
-          manualForceNextMultiplier: val
+          manualForceNextMultiplier: val,
+          forcedCrashMultiplier: val,
+          isManualOverride: isManual,
+          updatedAt: new Date().toISOString()
         }, { merge: true });
-        setStatusMessage(val ? `Aviator Crash: Forced next crash point to ${val.toFixed(2)}x!` : 'Aviator Crash: Reset to RTP Curve!');
+        setStatusMessage(val ? `Aviator Crash: Forced next crash point to ${val.toFixed(2)}x!` : 'Aviator Crash: Reset to Auto Risk Engine!');
       }
 
       setSaveSuccess(true);

@@ -445,11 +445,11 @@ export const DragonTigerGame: React.FC<DragonTigerGameProps> = ({
           let rtpMode = prev.rtpMode;
 
           const candidate = data.forcedWinner || data.manualForceWinner || data.manualForceTarget;
-          const isRoundMatch = !data.targetRoundId || data.targetRoundId === roundIdRef.current;
-          if (data.isManualOverride && isRoundMatch && candidate && candidate !== 'random') {
+          const isManual = Boolean(data.isManualOverride && candidate && candidate !== 'random');
+          if (isManual) {
             forcedWinner = candidate;
             rtpMode = 'manual_force_winner';
-          } else if (data.isAutoLowRiskActive && data.autoLowRiskWinner && data.autoLowRiskWinner !== 'random') {
+          } else if (data.isAutoLowRiskActive !== false && data.autoLowRiskWinner && data.autoLowRiskWinner !== 'random') {
             // Guard: auto low risk should NEVER be tie
             forcedWinner = (data.autoLowRiskWinner === 'tie' || data.autoLowRiskWinner === 'suited_tie') ? 'random' : data.autoLowRiskWinner;
             rtpMode = 'house_protect';
@@ -462,7 +462,8 @@ export const DragonTigerGame: React.FC<DragonTigerGameProps> = ({
             ...prev,
             manualForceWinner: forcedWinner,
             forcedWinner: forcedWinner,
-            isManualOverride: Boolean(data.isManualOverride && isRoundMatch && forcedWinner !== 'random'),
+            isManualOverride: isManual,
+            autoLowRiskWinner: (data.autoLowRiskWinner && data.autoLowRiskWinner !== 'random') ? data.autoLowRiskWinner : undefined,
             rtpMode,
             minBet: data.minBet !== undefined ? Number(data.minBet) : prev.minBet,
             maxBet: data.maxBet !== undefined ? Number(data.maxBet) : prev.maxBet,
@@ -617,7 +618,11 @@ export const DragonTigerGame: React.FC<DragonTigerGameProps> = ({
 
       if (phase === 'betting') {
         // Continuous 0s synchronization: If user bets or admin sets force/auto-risk, update cards & winner immediately!
-        if (activeWinningSideRef.current !== roundDetails.winningSide) {
+        if (
+          activeWinningSideRef.current !== roundDetails.winningSide ||
+          activeDragonCardRef.current?.rank !== roundDetails.dragonCard.rank ||
+          activeTigerCardRef.current?.rank !== roundDetails.tigerCard.rank
+        ) {
           activeDragonCardRef.current = roundDetails.dragonCard;
           activeTigerCardRef.current = roundDetails.tigerCard;
           activeWinningSideRef.current = roundDetails.winningSide;
@@ -923,6 +928,7 @@ export const DragonTigerGame: React.FC<DragonTigerGameProps> = ({
       },
       // Reset manual override flags so future rounds calculate dynamically via House Edge
       isManualOverride: false,
+      isAutoLowRiskActive: true,
       forcedWinner: 'random',
       manualForceWinner: 'random',
       manualForceTarget: 'random',

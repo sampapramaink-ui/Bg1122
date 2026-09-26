@@ -237,8 +237,8 @@ export const AdminCrashGameManager: React.FC = () => {
         isManualOverride: isManual,
         forcedCrashMultiplier: mult,
         manualForceNextMultiplier: mult,
-        targetRoundId: currentRoundId,
         isAutoLowRiskActive: !isManual,
+        autoCrashMultiplier: !isManual ? riskAnalysis.autoRecommendedCrashMultiplier : undefined,
         updatedAt: new Date().toISOString(),
       }, { merge: true });
 
@@ -858,32 +858,24 @@ export const AdminCrashGameManager: React.FC = () => {
                 </div>
               </div>
 
-              {/* Quick 1-Click Action to Change Predicted Crash Multiplier */}
+              {/* Single Authoritative Mode & Auto-Reset Status Card */}
               <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 flex flex-col justify-between">
-                <span className="text-[10px] text-slate-400 uppercase font-bold">ক্র্যাশ পয়েন্ট দ্রুত পরিবর্তন (0s Latency):</span>
-                <div className="grid grid-cols-3 gap-1.5 my-2">
-                  {[1.10, 1.25, 1.50, 2.00, 5.00, 10.00].map((m) => (
-                    <button
-                      key={m}
-                      onClick={() => handleSetTargetMultiplier(m)}
-                      className={`py-1.5 px-2 rounded-xl text-[10px] font-black transition cursor-pointer border ${
-                        forcedCrashMultiplier === m ? 'bg-rose-600 text-white border-white' : 'bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800'
-                      }`}
-                    >
-                      {m.toFixed(2)}x
-                    </button>
-                  ))}
-                  <button
-                    onClick={handleToggleAutoLowRisk}
-                    className={`py-1.5 px-2 rounded-xl text-[10px] font-black transition cursor-pointer border col-span-3 ${
-                      isAutoLowRiskActive ? 'bg-emerald-600 text-white border-white' : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
-                    }`}
-                  >
-                    🛡️ AUTO LOW-RISK (MAX PROFIT)
-                  </button>
+                <span className="text-[10px] text-slate-400 uppercase font-bold">একক নিয়ন্ত্রণ স্ট্যাটাস (Single Authoritative Mode):</span>
+                <div className="my-2 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2.5 h-2.5 rounded-full ${isManualOverrideEnabled ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`} />
+                    <span className="text-xs font-black text-white">
+                      {isManualOverrideEnabled ? `ম্যানুয়াল ক্র্যাশ পয়েন্ট সক্রিয় (${forcedCrashMultiplier?.toFixed(2)}x)` : '🛡️ অটো রিক্স ইঞ্জিন (১০০% হাউস প্রোটেকশন)'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    {isManualOverrideEnabled 
+                      ? '🎯 শুধুমাত্র এই চলতি ফ্লাইটের জন্য বলবৎ। ফ্লাইট ক্র্যাশ হওয়ার পরই স্বয়ংক্রিয়ভাবে অটো রিক্স ইঞ্জিন চালু হবে।' 
+                      : '🛡️ হাউসের ১০০% লাভ নিশ্চিত। এডমিন অফলাইনে থাকলেও কোনোভাবেই হাউস লস করবে না।'}
+                  </p>
                 </div>
-                <div className="text-[9px] text-slate-500 text-center">
-                  ক্লিক করার সাথে সাথে পরবর্তী ফ্লাইটের ক্র্যাশ পয়েন্ট নির্ধারিত হবে।
+                <div className="text-[10px] text-rose-400 font-bold border-t border-slate-800/80 pt-1.5 flex items-center justify-between">
+                  <span>নিচের 'Direct 1-Click Flight Interceptor' প্যানেল একমাত্র কন্ট্রোলার</span>
                 </div>
               </div>
             </div>
